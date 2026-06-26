@@ -1,6 +1,6 @@
 # IconX Solutions — E-Commerce Mobile Website
 
-A full-stack e-commerce mobile web application built with React and Firebase.
+A full-stack e-commerce mobile web application built with React, Cloudinary and Firebase.
 Browse products, manage a cart, place orders, and track purchases in real time.
 
 ## Features
