@@ -17,6 +17,7 @@ import TradeInCalculator from "./pages/TradeInCalculator";
 import CartPage from "./pages/CartPage";
 import OrderSuccess from "./pages/OrderSuccess";
 import TestAuth from "./TestAuth";
+import ProductDetails from "./pages/ProductDetails";
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
         {/* Products */}
         <Route path="/products" element={<ProductCategories />} />
         <Route path="/products/list" element={<Products />} />
+        <Route path="/product/:id" element={<ProductDetails />} />
 
         {/* Direct product pages */}
         <Route path="/apple" element={<Products />} />

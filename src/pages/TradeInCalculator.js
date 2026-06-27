@@ -3,6 +3,8 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useNavigate } from "react-router-dom";
 import jsPDF from "jspdf";
+import logo from "../assets/iconx-logo.jpg";
+import { loadLogo, drawHeader, drawFooter, drawSectionHeader, drawDetailCard, PDF_COLORS } from "../utils/pdfTheme";
 
 import {
   addDoc,
@@ -148,68 +150,82 @@ export default function TradeInCalculator() {
     return null;
   }
 
-  function downloadTradeInPDF() {
+  async function downloadTradeInPDF() {
     if (!submittedTradeIn) return;
 
     const docPDF = new jsPDF();
+    const logoImg = await loadLogo(logo);
 
-    docPDF.setFontSize(20);
-    docPDF.text("Mobile Trade-In Request", 20, 20);
+    // Header
+    drawHeader(docPDF, logoImg, "Trade-In Request", "Estimation details for device trade-in", { id: submittedTradeIn.IMEI });
 
-    docPDF.setFontSize(12);
-    docPDF.text(`Customer Name: ${submittedTradeIn.customer_name}`, 20, 40);
-    docPDF.text(`Customer Phone: ${submittedTradeIn.customer_phone}`, 20, 50);
-    docPDF.text(`Brand: ${submittedTradeIn.brand}`, 20, 60);
-    docPDF.text(`Model: ${submittedTradeIn.device_model}`, 20, 70);
-    docPDF.text(`IMEI: ${submittedTradeIn.IMEI}`, 20, 80);
-    docPDF.text(
-      `Estimated Value: LKR ${submittedTradeIn.trade_value.toLocaleString()}`,
-      20,
-      90
-    );
-    docPDF.text(`Status: ${submittedTradeIn.status}`, 20, 100);
+    // Details Card
+    let y = 42;
+    y = drawSectionHeader(docPDF, "Trade-In Details", y);
 
-    docPDF.setFontSize(14);
-    docPDF.text("Condition Check", 20, 120);
+    const details = [
+      { label: "Customer Name", value: submittedTradeIn.customer_name },
+      { label: "Customer Phone", value: submittedTradeIn.customer_phone },
+      { label: "Brand & Model", value: `${submittedTradeIn.brand} ${submittedTradeIn.device_model}` },
+      { label: "IMEI Number", value: submittedTradeIn.IMEI },
+      { label: "Estimated Value", value: `LKR ${submittedTradeIn.trade_value.toLocaleString()}` },
+      { label: "Request Status", value: submittedTradeIn.status || "Pending Review" }
+    ];
+    y = drawDetailCard(docPDF, details, 15, y, 180);
 
-    docPDF.setFontSize(12);
-    docPDF.text(
-      `Powers On: ${submittedTradeIn.condition.powersOn ? "Yes" : "No"}`,
-      20,
-      135
-    );
-    docPDF.text(
-      `Screen Cracked: ${submittedTradeIn.condition.screenCracked ? "Yes" : "No"}`,
-      20,
-      145
-    );
-    docPDF.text(
-      `Back Glass Cracked: ${submittedTradeIn.condition.backCracked ? "Yes" : "No"}`,
-      20,
-      155
-    );
-    docPDF.text(
-      `Buttons Working: ${submittedTradeIn.condition.buttonsWorking ? "Yes" : "No"}`,
-      20,
-      165
-    );
-    docPDF.text(
-      `Camera Working: ${submittedTradeIn.condition.cameraWorking ? "Yes" : "No"}`,
-      20,
-      175
-    );
-    docPDF.text(
-      `Battery Healthy: ${submittedTradeIn.condition.batteryHealthy ? "Yes" : "No"}`,
-      20,
-      185
-    );
-    docPDF.text(
-      `Water Damage: ${submittedTradeIn.condition.waterDamage ? "Yes" : "No"}`,
-      20,
-      195
-    );
+    // Checklist Card
+    y = drawSectionHeader(docPDF, "Condition Inspection Checklist", y + 4);
 
-    docPDF.text(`Notes: ${submittedTradeIn.notes || "No notes"}`, 20, 215);
+    const conditions = [
+      { label: "Powers On", value: submittedTradeIn.condition.powersOn ? "YES (Pass)" : "NO (Fail)", pass: submittedTradeIn.condition.powersOn },
+      { label: "Screen Intact (No Cracks)", value: !submittedTradeIn.condition.screenCracked ? "YES (Pass)" : "NO (Cracked)", pass: !submittedTradeIn.condition.screenCracked },
+      { label: "Back Glass Intact (No Cracks)", value: !submittedTradeIn.condition.backCracked ? "YES (Pass)" : "NO (Cracked)", pass: !submittedTradeIn.condition.backCracked },
+      { label: "Buttons Functional", value: submittedTradeIn.condition.buttonsWorking ? "YES (Pass)" : "NO (Fail)", pass: submittedTradeIn.condition.buttonsWorking },
+      { label: "Cameras Functional", value: submittedTradeIn.condition.cameraWorking ? "YES (Pass)" : "NO (Fail)", pass: submittedTradeIn.condition.cameraWorking },
+      { label: "Battery Healthy", value: submittedTradeIn.condition.batteryHealthy ? "YES (Pass)" : "NO (Fail)", pass: submittedTradeIn.condition.batteryHealthy },
+      { label: "No Water Damage", value: !submittedTradeIn.condition.waterDamage ? "YES (Pass)" : "NO (Damaged)", pass: !submittedTradeIn.condition.waterDamage }
+    ];
+
+    docPDF.setFillColor(...PDF_COLORS.lightBg);
+    docPDF.setDrawColor(...PDF_COLORS.border);
+    docPDF.setLineWidth(0.3);
+    const cardHeight = conditions.length * 6.5 + 6;
+    docPDF.roundedRect(15, y, 180, cardHeight, 3, 3, "FD");
+
+    let condY = y + 6;
+    conditions.forEach((c) => {
+      docPDF.setFont("helvetica", "normal");
+      docPDF.setFontSize(8.5);
+      docPDF.setTextColor(...PDF_COLORS.primary);
+      docPDF.text(c.label, 21, condY);
+
+      if (c.pass) {
+        docPDF.setTextColor(...PDF_COLORS.success);
+        docPDF.setFont("helvetica", "bold");
+        docPDF.text(c.value, 150, condY);
+      } else {
+        docPDF.setTextColor(...PDF_COLORS.error);
+        docPDF.setFont("helvetica", "bold");
+        docPDF.text(c.value, 150, condY);
+      }
+      condY += 6.5;
+    });
+    y += cardHeight + 6;
+
+    // Notes
+    if (submittedTradeIn.notes) {
+      y = drawSectionHeader(docPDF, "Additional Notes", y + 4);
+      docPDF.setFont("helvetica", "normal");
+      docPDF.setFontSize(9);
+      docPDF.setTextColor(...PDF_COLORS.primary);
+      
+      // Multi-line text fallback or splitting
+      const splitNotes = docPDF.splitTextToSize(submittedTradeIn.notes, 170);
+      docPDF.text(splitNotes, 15, y + 2);
+    }
+
+    // Footer
+    drawFooter(docPDF, 1, 1, "IconX Trade-In System");
 
     docPDF.save("trade-in-request.pdf");
   }

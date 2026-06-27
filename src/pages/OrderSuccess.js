@@ -4,6 +4,8 @@ import { Check, Download } from "lucide-react";
 import jsPDF from "jspdf";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import logo from "../assets/iconx-logo.jpg";
+import { loadLogo, drawHeader, drawFooter, drawSectionHeader, drawDetailCard, PDF_COLORS } from "../utils/pdfTheme";
 import "./OrderSuccess.css";
 
 function formatLkr(value) {
@@ -21,39 +23,42 @@ export default function OrderSuccess() {
     window.scrollTo(0, 0);
   }, []);
 
-  const handleDownloadReceipt = () => {
+  const handleDownloadReceipt = async () => {
     const doc = new jsPDF();
+    const logoImg = await loadLogo(logo);
 
     const customerName = state?.customerName || "Customer";
     const orderId = state?.orderId || "Pending confirmation";
     const total = formatLkr(state?.total || 0);
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.text("ICONX MOBILE STORE", 20, 25);
+    // Header
+    drawHeader(doc, logoImg, "Order Receipt", "Invoice for order #" + orderId, { id: orderId });
 
-    doc.setFontSize(16);
-    doc.text("Order Receipt", 20, 40);
+    // Customer & Order details
+    let y = 42;
+    y = drawSectionHeader(doc, "Customer & Order Summary", y);
 
-    doc.setDrawColor(220);
-    doc.line(20, 48, 190, 48);
+    const details = [
+      { label: "Customer Name", value: customerName },
+      { label: "Order ID", value: orderId },
+      { label: "Order Status", value: "Successful (Paid)" },
+      { label: "Grand Total", value: total }
+    ];
+    y = drawDetailCard(doc, details, 15, y, 180);
 
+    // Message details
+    y = drawSectionHeader(doc, "Important Information", y + 4);
+    
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(12);
-    doc.text("Order Status: Successful", 20, 65);
-    doc.text(`Customer Name: ${customerName}`, 20, 80);
-    doc.text(`Order ID: ${orderId}`, 20, 95);
-    doc.text(`Total: ${total}`, 20, 110);
+    doc.setFontSize(9.5);
+    doc.setTextColor(...PDF_COLORS.primary);
+    
+    doc.text("Thank you for your purchase. We appreciate your business!", 15, y + 2);
+    doc.text("Our fulfillment team will contact you shortly to confirm your order and schedule delivery.", 15, y + 8);
+    doc.text("Please keep this receipt for your records. For any inquiries, reach us at support@iconx.lk.", 15, y + 14);
 
-    doc.line(20, 120, 190, 120);
-
-    doc.setFontSize(11);
-    doc.text("Thank you for your purchase.", 20, 138);
-    doc.text(
-      "Our team will contact you soon to confirm your order and delivery details.",
-      20,
-      150
-    );
+    // Footer
+    drawFooter(doc, 1, 1, "IconX Receipt");
 
     doc.save(`IconX-Receipt-${state?.orderId || "order"}.pdf`);
   };

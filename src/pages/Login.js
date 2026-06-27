@@ -235,7 +235,6 @@ export default function Login() {
             </div>
             <div className="lp-logo-tagline">Mobile Store</div>
             <p className="lp-welcome">
-              {adminMode ? 'Secure portal access with a role-based extra code.' : 'Welcome back — sign in to continue'}
             </p>
           </div>
 

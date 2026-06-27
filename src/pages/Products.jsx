@@ -310,28 +310,30 @@ const Products = () => {
             {filteredProducts.length > 0 ? (
               filteredProducts.map((product) => (
                 <div key={product.id} className="grid-product-card">
-                  <div className="grid-product-image">
-                    {product.image && !brokenImages[product.id] ? (
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        loading="lazy"           
-                        onError={() => handleImageError(product.id)}
-                      />
-                    ) : (
-                      <div className="grid-product-image-fallback">
-                        <span>📷 No Image</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="product-color-dots">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
+                  <Link to={`/product/${product.id}`} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+                    <div className="grid-product-image">
+                      {product.image && !brokenImages[product.id] ? (
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          loading="lazy"           
+                          onError={() => handleImageError(product.id)}
+                        />
+                      ) : (
+                        <div className="grid-product-image-fallback">
+                          <span>📷 No Image</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="product-color-dots">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
 
-                  <h4>{product.name}</h4>
+                    <h4 style={{ margin: "12px 0 6px" }}>{product.name}</h4>
+                  </Link>
 
                   <p className="grid-product-category">
                     {product.category || "Collection item"}

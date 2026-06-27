@@ -120,28 +120,16 @@ export default function SplashScreen() {
         {/* Center content */}
         <div className="sx-center">
 
-          {/* Logo + spinning rings */}
+          {/* Logo + spinning rings centered perfectly */}
           <div className="sx-logo-wrap">
             <div className="sx-ring-a" />
             <div className="sx-ring-b" />
             <img src={iconxLogo} alt="iconX" className="sx-logo-img" />
           </div>
 
-          <p className="sx-welcome">Welcome to</p>
-          <h1 className="sx-brand">icon<span>X</span></h1>
-          <p className="sx-tagline">Mobile Store Solutions</p>
-          <div className="sx-divider" />
-
-          {/* Progress bar */}
+          {/* Cleaned progress loading tracking */}
           <div className="sx-progress-wrap">
             <div className="sx-progress-bar" />
-          </div>
-
-          {/* Dots */}
-          <div className="sx-dots">
-            <div className="sx-dot" />
-            <div className="sx-dot" />
-            <div className="sx-dot" />
           </div>
 
         </div>
@@ -150,9 +138,9 @@ export default function SplashScreen() {
   );
 }
 
-/* ─── All styles as a plain string — no template literals ─── */
+/* ─── Adjusted Clean Layout Styles ─── */
 const STYLES = `
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght=700;800&family=DM+Sans:wght=300;400;500&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -246,7 +234,6 @@ const STYLES = `
   from { opacity: 0; transform: scale(0.4); }
   to   { opacity: 1; transform: scale(1); }
 }
-/* Fix corners that have their own transform */
 .sx-tr { animation-name: sxCornerInFlipX; }
 .sx-bl { animation-name: sxCornerInFlipY; }
 .sx-br { animation-name: sxCornerInFlipXY; }
@@ -266,7 +253,7 @@ const STYLES = `
   position: relative;
   width: 128px; height: 128px;
   display: flex; align-items: center; justify-content: center;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   opacity: 0;
   animation: sxLogoIn 0.9s cubic-bezier(0.16,1,0.3,1) 0.2s forwards;
 }
@@ -309,79 +296,22 @@ const STYLES = `
   50%      { box-shadow: 0 0 0 5px rgba(10,132,255,0.38), 0 0 80px rgba(10,132,255,0.7),  0 8px 30px rgba(0,0,0,0.55); }
 }
 
-/* Text animations — shared fade-up */
-.sx-welcome, .sx-brand, .sx-tagline, .sx-divider, .sx-progress-wrap, .sx-dots {
-  opacity: 0;
-}
-
-.sx-welcome {
-  font-size: 11px; font-weight: 400;
-  letter-spacing: 5px; text-transform: uppercase;
-  color: rgba(10,132,255,0.8);
-  margin-bottom: 8px;
-  animation: sxFadeUp 0.8s cubic-bezier(0.16,1,0.3,1) 0.85s forwards;
-}
-.sx-brand {
-  font-family: 'Syne', sans-serif;
-  font-size: clamp(52px,9vw,80px); font-weight: 800;
-  letter-spacing: -2px; line-height: 1;
-  color: #f5f5f7; margin-bottom: 6px;
-  animation: sxFadeUp 0.9s cubic-bezier(0.16,1,0.3,1) 1.05s forwards;
-}
-.sx-brand span {
-  color: #0a84ff;
-  text-shadow: 0 0 40px rgba(10,132,255,0.6);
-}
-.sx-tagline {
-  font-size: 12px; font-weight: 400;
-  letter-spacing: 3px; text-transform: uppercase;
-  color: rgba(255,255,255,0.3);
-  margin-bottom: 40px;
-  animation: sxFadeUp 0.9s cubic-bezier(0.16,1,0.3,1) 1.25s forwards;
-}
-.sx-divider {
-  width: 160px; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(10,132,255,0.55), transparent);
-  margin-bottom: 28px;
-  animation: sxLineGrow 1s cubic-bezier(0.16,1,0.3,1) 1.45s forwards;
-}
-@keyframes sxLineGrow {
-  from { opacity: 0; width: 0; }
-  to   { opacity: 1; width: 160px; }
-}
-
-/* Progress */
+/* Progress Container setup */
 .sx-progress-wrap {
   width: 180px; height: 2px;
   background: rgba(255,255,255,0.07);
   border-radius: 2px; overflow: hidden;
-  animation: sxFadeUp 0.5s ease 1.6s forwards;
+  opacity: 0;
+  animation: sxFadeUp 0.5s ease 0.6s forwards;
 }
 .sx-progress-bar {
   height: 100%; width: 0; border-radius: 2px;
   background: linear-gradient(90deg, #0a84ff, #60b0ff);
-  animation: sxProgress 2.2s cubic-bezier(0.4,0,0.2,1) 1.8s forwards;
+  animation: sxProgress 2.2s cubic-bezier(0.4,0,0.2,1) 0.8s forwards;
 }
 @keyframes sxProgress {
   from { width: 0;    opacity: 0.6; }
   to   { width: 100%; opacity: 1;   }
-}
-
-/* Dots */
-.sx-dots {
-  display: flex; gap: 6px; margin-top: 16px;
-  animation: sxFadeUp 0.5s ease 1.85s forwards;
-}
-.sx-dot {
-  width: 4px; height: 4px; border-radius: 50%;
-  background: rgba(10,132,255,0.45);
-  animation: sxDotBounce 1.1s ease-in-out infinite;
-}
-.sx-dot:nth-child(2) { animation-delay: 0.18s; }
-.sx-dot:nth-child(3) { animation-delay: 0.36s; }
-@keyframes sxDotBounce {
-  0%,100% { transform: scale(1);   background: rgba(10,132,255,0.4); }
-  50%      { transform: scale(1.7); background: rgba(10,132,255,0.95); }
 }
 
 @keyframes sxFadeUp {

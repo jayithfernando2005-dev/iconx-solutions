@@ -49,6 +49,13 @@ const EMPTY_FORM = {
   stock_in: "",
   description: "",
   status: "ACTIVE",
+  longDescription: "",
+  detailImage1: "",
+  detailImage2: "",
+  detailImage3: "",
+  warranty: "",
+  support: "",
+  specifications: [],
 };
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -319,13 +326,44 @@ function ProductForm({ existing, onBack }) {
           stock_in: existing.stock_in || "",
           description: existing.description || "",
           status: existing.status || "ACTIVE",
+          longDescription: existing.longDescription || "",
+          detailImage1: existing.detailImage1 || "",
+          detailImage2: existing.detailImage2 || "",
+          detailImage3: existing.detailImage3 || "",
+          warranty: existing.warranty || "",
+          support: existing.support || "",
         }
       : { ...EMPTY_FORM }
   );
 
+  const [specs, setSpecs] = useState(existing?.specifications || []);
+
+  const addSpecRow = () => {
+    setSpecs([...specs, { label: "", value: "" }]);
+  };
+
+  const removeSpecRow = (idx) => {
+    setSpecs(specs.filter((_, i) => i !== idx));
+  };
+
+  const handleSpecChange = (idx, field, val) => {
+    const updated = [...specs];
+    updated[idx][field] = val;
+    setSpecs(updated);
+  };
+
   const [imageFile, setImageFile] = useState(null);
   const [imageUrlInput, setImageUrlInput] = useState(existing?.image || "");
   const [preview, setPreview] = useState(existing?.image || null);
+
+  // Detail images (Cloudinary upload)
+  const [detailPreviews, setDetailPreviews] = useState([
+    existing?.detailImage1 || null,
+    existing?.detailImage2 || null,
+    existing?.detailImage3 || null,
+  ]);
+  const [detailUploading, setDetailUploading] = useState([false, false, false]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -379,6 +417,60 @@ function ProductForm({ existing, onBack }) {
     setError("");
   };
 
+  const onDetailImage = async (e, idx) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError(`Detail image ${idx + 1}: Please choose a valid image file.`);
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      setError(`Detail image ${idx + 1}: Image must be smaller than 5MB.`);
+      return;
+    }
+
+    // Show local preview immediately
+    const objectUrl = URL.createObjectURL(file);
+    setDetailPreviews((prev) => {
+      const updated = [...prev];
+      updated[idx] = objectUrl;
+      return updated;
+    });
+
+    // Upload to Cloudinary right away
+    setDetailUploading((prev) => {
+      const updated = [...prev];
+      updated[idx] = true;
+      return updated;
+    });
+
+    try {
+      const url = await uploadImageToCloudinary(file);
+      // Store the Cloudinary URL directly into form
+      const fieldName = `detailImage${idx + 1}`;
+      setForm((p) => ({ ...p, [fieldName]: url }));
+      setDetailPreviews((prev) => {
+        const updated = [...prev];
+        updated[idx] = url;
+        return updated;
+      });
+    } catch (err) {
+      setError(`Detail image ${idx + 1}: Upload failed — ${err.message}`);
+      setDetailPreviews((prev) => {
+        const updated = [...prev];
+        updated[idx] = existing?.[`detailImage${idx + 1}`] || null;
+        return updated;
+      });
+    } finally {
+      setDetailUploading((prev) => {
+        const updated = [...prev];
+        updated[idx] = false;
+        return updated;
+      });
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -420,6 +512,7 @@ function ProductForm({ existing, onBack }) {
         price: parseFloat(form.price),
         stock_in: parseInt(form.stock_in, 10),
         image: imageUrl,
+        specifications: specs,
       };
 
       if (existing) {
@@ -598,6 +691,159 @@ function ProductForm({ existing, onBack }) {
                 onChange={onImageUrlChange}
                 placeholder="https://example.com/product-image.jpg"
               />
+            </div>
+
+            {/* Rich Product Details Section */}
+            <div className="form-group full-width" style={{ marginTop: 24 }}>
+              <h3 style={{ fontSize: 15, color: "var(--accent)", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Rich Details & Technical Specifications</h3>
+            </div>
+
+            <div className="form-group full-width">
+              <label>Detailed Description (Supports paragraphs & multi-line text)</label>
+              <textarea
+                name="longDescription"
+                value={form.longDescription || ""}
+                onChange={up}
+                rows={5}
+                placeholder="Enter rich details, features or warranty/support descriptions..."
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Warranty Period / Type</label>
+              <input
+                name="warranty"
+                type="text"
+                value={form.warranty || ""}
+                onChange={up}
+                placeholder="e.g. Apple Care, 1 Year Shop Warranty"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Support Coverage</label>
+              <input
+                name="support"
+                type="text"
+                value={form.support || ""}
+                onChange={up}
+                placeholder="e.g. Official Support, 24/7 Helpline"
+              />
+            </div>
+
+            <div className="form-group full-width">
+              <label>Detail Showcase Images (Upload to Cloudinary — up to 3)</label>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 6 }}>
+                {[0, 1, 2].map((idx) => (
+                  <div
+                    key={idx}
+                    className="image-upload-wrapper"
+                    style={{ height: 140, position: "relative", cursor: "pointer" }}
+                    onClick={() => document.getElementById(`detail-img-${idx}`)?.click()}
+                  >
+                    <input
+                      id={`detail-img-${idx}`}
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      onChange={(e) => onDetailImage(e, idx)}
+                    />
+                    {detailUploading[idx] ? (
+                      <div style={{ textAlign: "center", color: "var(--accent)", padding: 8 }}>
+                        <div style={{ fontSize: 22, marginBottom: 6 }}>⏳</div>
+                        <div style={{ fontSize: 12 }}>Uploading...</div>
+                      </div>
+                    ) : detailPreviews[idx] ? (
+                      <>
+                        <img
+                          src={detailPreviews[idx]}
+                          alt={`Detail ${idx + 1}`}
+                          style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }}
+                        />
+                        <div style={{
+                          position: "absolute", bottom: 6, right: 8,
+                          background: "rgba(0,0,0,0.55)", color: "#fff",
+                          fontSize: 10, padding: "2px 7px", borderRadius: 4
+                        }}>Change</div>
+                      </>
+                    ) : (
+                      <div style={{ textAlign: "center", color: "#666" }}>
+                        <div style={{ fontSize: 26, marginBottom: 6 }}>📷</div>
+                        <div style={{ fontSize: 12 }}>Image {idx + 1}</div>
+                        <div style={{ fontSize: 11, marginTop: 3, color: "#888" }}>Click to upload</div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="image-input-hint" style={{ marginTop: 8 }}>
+                Images are uploaded directly to Cloudinary. Max 5MB each.
+              </div>
+            </div>
+
+            <div className="form-group full-width" style={{ marginTop: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <label style={{ margin: 0 }}>Specification List</label>
+                <button
+                  type="button"
+                  onClick={addSpecRow}
+                  style={{
+                    padding: "6px 12px",
+                    background: "var(--accent)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: "bold",
+                  }}
+                >
+                  + Add Spec Row
+                </button>
+              </div>
+
+              {specs.length === 0 ? (
+                <div style={{ padding: 12, background: "rgba(255,255,255,0.02)", border: "1px dashed var(--border)", borderRadius: 6, color: "var(--text-dim)", fontSize: 12, textAlign: "center" }}>
+                  No specifications added. Click "+ Add Spec Row" to define technical specs.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {specs.map((spec, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <input
+                        type="text"
+                        placeholder="Spec Name (e.g. Storage)"
+                        value={spec.label}
+                        onChange={(e) => handleSpecChange(idx, "label", e.target.value)}
+                        style={{ flex: 1, padding: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "#fff", borderRadius: 4 }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Spec Value (e.g. 128GB, 256GB)"
+                        value={spec.value}
+                        onChange={(e) => handleSpecChange(idx, "value", e.target.value)}
+                        style={{ flex: 2, padding: "8px", border: "1px solid var(--border)", background: "var(--surface)", color: "#fff", borderRadius: 4 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeSpecRow(idx)}
+                        style={{
+                          background: "var(--red)",
+                          color: "#fff",
+                          border: "none",
+                          width: 32,
+                          height: 32,
+                          borderRadius: 4,
+                          cursor: "pointer",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
