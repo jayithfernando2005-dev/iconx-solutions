@@ -40,7 +40,7 @@
 }
 
 .hero-title-b {
-  font-size: clamp(2.5rem, 5vw, 3.6rem);
+  font-size: clamp(2.2rem, 4vw, 3rem);
   font-weight: 800;
   color: #ffffff;
   margin-bottom: 0.9rem;
@@ -78,7 +78,7 @@
 }
 
 .about-story-section {
-  padding: 10px 0 80px;
+  padding: 10px 0 60px;
   background: #ffffff;
 }
 
@@ -220,7 +220,7 @@
 
 /*WHY CHOOSE US HEADER*/
 .featured-section {
-  padding: 10px 0 20px;
+  padding: 0 0 20px;
   background: #ffffff; 
   text-align: center;
 } 
@@ -236,7 +236,16 @@
   color: #6b7280;
   letter-spacing: 1px;
   text-transform: uppercase;
-  margin: 0 0 8px;
+  margin: 20px 0 0;
+}
+
+.featured-title-why {
+  font-size: 18px;
+  font-weight: 600;
+  color: #6b7280;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin: 0 0 20px;
 }
 
 /*SEE IT IN ACTION HEADER*/
@@ -742,6 +751,22 @@
   font-size: 11px;
   font-weight: 700;
   flex-shrink: 0;
+}
+
+.section-label-ab {
+  font-size: 1.58rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #000000a8;
+}
+
+.section-label-abc {
+  font-size: 1.58rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #000000a8;
 }
 
 .video-showcase-text .section-label-a {

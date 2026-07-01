@@ -195,7 +195,7 @@ export default function CartPage() {
                 <h3>Your cart is currently empty!</h3>
                 <p>Add products from the collection page to start your order.</p>
                 <Link to="/products" className="cart-shop-btn">
-                  Continue Shopping
+                  Continue shopping
                 </Link>
               </div>
             ) : (
@@ -249,7 +249,7 @@ export default function CartPage() {
           <aside className="cart-summary-panel">
             <div className="cart-summary-card">
               <p className="cart-kicker-a">Checkout</p>
-              <h2 className="gradient-text">Buy Now</h2>
+              <h2 className="gradient-text-buy">Buy now</h2>
               <div className="cart-summary-rows">
                 <div>
                   <span>Subtotal</span>

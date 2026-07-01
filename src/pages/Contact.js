@@ -350,7 +350,7 @@ const Contact = () => (
     <section className="featured-section">
       <div className="featured-container">
         <FadeUp delay={0.1}>
-          <h2 className="featured-title">CONTACT US</h2>
+          <h2 className="featured-title-contact">CONTACT US</h2>
         </FadeUp>
       </div>
     </section>

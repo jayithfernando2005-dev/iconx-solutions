@@ -119,9 +119,7 @@ export default function ProductDetails() {
             <div className="details-card desc-card">
               <h2 className="details-card-title">Description</h2>
               
-              <div className="details-main-heading">
-                {product.name} {product.brands ? `by ${product.brands}` : ""} - Official Warranty
-              </div>
+              
 
               <div className="details-desc-body">
                 {renderDescription(product.longDescription || product.description)}
@@ -186,7 +184,7 @@ export default function ProductDetails() {
               <p className="quick-installment">
                 or 3 x රු{(Number(product.price || 0) / 3).toLocaleString(undefined, {
                   maximumFractionDigits: 2,
-                })} interest-free with 
+                })} with 
                 <img src={kokoLogo} alt="koko" className="koko-logo-inline" />
               </p>
               

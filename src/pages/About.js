@@ -190,7 +190,7 @@ const About = () => {
       <section className="featured-section">
         <div className="featured-container">
           <FadeUp delay={0.1}>
-            <h2 className="featured-title">WHY CHOOSE US</h2>
+            <h2 className="featured-title-why">WHY CHOOSE US</h2>
           </FadeUp>
         </div>
       </section>
@@ -291,7 +291,7 @@ const About = () => {
       <section className="testimonials-section">
         <div className="container testimonials-container">
           <FadeUp delay={0.2}>
-            <div className="section-label-a">Our Store</div>
+            <div className="section-label-abc">Our Store</div>
             <h2 className="gradient-text">
               Showroom <span className="accent">Experience</span>
             </h2>
@@ -330,7 +330,7 @@ const About = () => {
       <section className="testimonials-section-a">
         <div className="container testimonials-container">
           <FadeUp delay={0.2}>
-            <div className="section-label-a">See It In Action</div>
+            <div className="section-label-ab">See It In Action</div>
             <h2 className="gradient-text">
               Experience Innovation<span className="accent"> Up Close</span>
             </h2>

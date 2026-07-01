@@ -40,6 +40,7 @@ import customer6 from "../images/Customer6.jpeg";
 import customer7 from "../images/Csutomer7.jpeg";
 import customer8 from "../images/Customer8.jpeg";
 import Pro from "../images/Pro2.avif";
+import Promax from "../images/leftear.png";
 
 const customerCards = [
   { id: 1, name: null, image: customer1, text: "Loved the service.", product: "iPhone 17" },
@@ -131,7 +132,7 @@ const Home = () => {
       <section className="featured-slider-section" data-fade-up style={{ "--fade-delay": "0ms" }}>
         <div className="featured-slider-header" data-fade-up style={{ "--fade-delay": "80ms" }}>
           <p className="featured-subtitle">Featured Collection</p>
-          <h2>Discover Brands</h2>
+          <span className="pc-tabs-label-down-home">Discover Brands</span>
         </div>
         <div className="featured-slider-track-wrap" data-fade-up style={{ "--fade-delay": "140ms" }}>
           <div className="featured-slider-track">
@@ -361,7 +362,7 @@ const Home = () => {
             Switch to your new device and save on your next upgrade.
           </p>
           <a href="/trade-in" className="tradein-btn">
-            Check Switch Value
+            Check switch value
           </a>
         </div>
       </section>
@@ -565,13 +566,14 @@ const Home = () => {
       <section className="accessories-banner-section" data-fade-up style={{ "--fade-delay": "0ms" }}>
         <div className="accessories-banner">
           <div className="accessories-banner-image" data-fade-up style={{ "--fade-delay": "60ms" }}>
-            <img src={Pro} alt="Apple Accessories" />
+            <img src={Promax} alt="Apple Accessories" />
           </div>
           <div className="accessories-banner-content" data-fade-up style={{ "--fade-delay": "140ms" }}>
-            <h2 className="gradient-text">All Accessories</h2>
+            <h2 className="gradient-text-new-home">All Accessories</h2>
             <p>
-              Keep your devices safe and stylish with premium
-              accessories for everyday use.
+              Explore our curated collection 
+              of premium cases, chargers, AirPods, Apple Watches, and AirTags. All 
+              hand picked to complement your Apple lifestyle perfectly.
             </p>
             <div className="accessories-banner-buttons">
               <button className="accessory-pill-btn" onClick={() => navigate("/products")} >Watches</button>
@@ -590,7 +592,7 @@ const Home = () => {
               <img src={accessories} alt="Accessories" />
             </div>
             <div className="category-banner-content">
-              <h3>Accessories</h3>
+              <h3>Camera</h3>
               <button className="category-banner-btn" onClick={() => navigate("/products")}>View Products</button>
             </div>
           </div>

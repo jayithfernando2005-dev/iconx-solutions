@@ -21,10 +21,12 @@ import macbookair from "../images/macbookair.jpg";
 import macbookpro from "../images/macbookpro.jpg";
 import imac from "../images/imac.jpg";
 import macmini from "../images/mac_mini.jpg";
-import all from "../images/top.jpg";
-import icon from "../images/icon.jpeg";
-import jbl from "../images/jbl.avif";
-import service from "../images/topbadu.webp";
+import all from "../images/erasebg-transformed.png";
+import icon from "../images/pocket-3-1.webp";
+import jbl from "../images/onlyjbl.avif";
+import service from "../images/ugreen.webp";
+import airpodsImg from "../images/Airpods-Pro-3-Release.jpg";
+import iwatch from "../images/iwatch11.jpg";
 
 const FadeUp = ({ children, delay = 0, className = "" }) => (
   <motion.div
@@ -139,7 +141,7 @@ export default function TradeInPage() {
       <div className="trade-wrap">
         <section className="trade-hero">
           <FadeUp delay={0.15}>
-            <h1>Power Your Next Upgrade</h1>
+            <span className="trade-hero-title-small">Upgrade Your Device</span>
           </FadeUp>
 
           <FadeUp delay={0.25}>
@@ -231,7 +233,7 @@ export default function TradeInPage() {
                   className="trade-primary-btn big-btn"
                   onClick={() => setShowModal(true)}
                 >
-                  Check Switch Value 
+                  Check Switch Value
                 </button>
               </div>
               <div className="offer-image">
@@ -254,10 +256,11 @@ export default function TradeInPage() {
                 <div className="arrival-promo-content">
                   <p className="arrival-small-text">iPhone 17 Series</p>
                   <h3>Discover the latest arrivals.</h3>
-                  <button 
-                  type = "button"
-                  className="arrival-shop-btn"
-                  onClick={() => navigate("/apple")}>
+                  <button
+                    type="button"
+                    className="arrival-shop-btn"
+                    onClick={() => navigate("/apple")}
+                  >
                     Shop Now
                   </button>
                 </div>
@@ -280,6 +283,99 @@ export default function TradeInPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          </FadeUp>
+        </section>
+
+        <section className="ab2-section">
+          <FadeUp delay={0.25}>
+            <div className="ab2-wrapper">
+              <div className="ab2-left">
+                <img src={airpodsImg} alt="AirPods Pro" className="ab2-img" />
+              </div>
+              <div className="ab2-right">
+                <h2 className="gradient-text-new">AirPods Pro 3</h2>
+                <p className="ab2-desc">
+                  Experience the next generation of sound. The all-new AirPods
+                  Pro feature Apple's most advanced H3 chip, delivering up to 2x
+                  stronger Active Noise Cancellation than ever before. With
+                  Adaptive Audio that seamlessly blends your environment,
+                  crystal clear voice isolation, and a custom-fit design built
+                  for all day comfort and these are not just earbuds, they are a
+                  statement. Up to 36 hours of total battery life, lossless
+                  audio over Wi-Fi, and real-time head tracking for immersive
+                  Spatial Audio. The future of listening is here.
+                </p>
+              </div>
+            </div>
+          </FadeUp>
+        </section>
+
+        <section className="accessories-banner-section-switch">
+          <FadeUp delay={0.25}>
+            <div className="accessories-banner-switch">
+              <div className="accessories-banner-content-a">
+                <h2 className="gradient-text">All Accessories</h2>
+                <p>
+                  Explore our curated collection of premium cases, chargers,
+                  AirPods, Apple Watches, and AirTags. All hand picked to
+                  complement your Apple lifestyle perfectly.
+                </p>
+
+                <div className="accessories-banner-buttons-switch">
+                  <button
+                    className="accessory-pill-btn-switch"
+                    onClick={() => navigate("/accessories")}
+                  >
+                    Watches
+                  </button>
+                  <button
+                    className="accessory-pill-btn-switch"
+                    onClick={() => navigate("/accessories")}
+                  >
+                    AirPods
+                  </button>
+                  <button
+                    className="accessory-pill-btn-switch"
+                    onClick={() => navigate("/accessories")}
+                  >
+                    Airtags
+                  </button>
+                  <button
+                    className="accessory-pill-btn-switch"
+                    onClick={() => navigate("/accessories")}
+                  >
+                    Cases
+                  </button>
+                </div>
+              </div>
+
+              <div className="accessories-banner-image">
+                <img src={all} alt="Apple Accessories" />
+              </div>
+            </div>
+          </FadeUp>
+        </section>
+
+        <section className="ab3-section">
+          <FadeUp delay={0.25}>
+            <div className="ab3-wrapper">
+              <div className="ab3-left">
+                <img src={iwatch} alt="AirPods Pro" className="ab3-img" />
+              </div>
+              <div className="ab3-right">
+                <h2 className="gradient-text-new3">Apple Watch Series 11</h2>
+                <p className="ab3-desc">
+                  Introducing Apple Watch Series 11 the most advanced Apple
+                  Watch ever made. With a redesigned Always on Retina display,
+                  next-generation health sensors including blood glucose
+                  monitoring, and a titanium build that's both lighter and
+                  stronger than before. Track your sleep, heart, and fitness
+                  with unmatched precision. Up to 36 hours of battery life,
+                  crash detection, and emergency SOS. Because your health
+                  deserves nothing less than the best.
+                </p>
               </div>
             </div>
           </FadeUp>
@@ -314,48 +410,16 @@ export default function TradeInPage() {
                 <div className="arrival-promo-content">
                   <p className="arrival-small-text">Mac Series</p>
                   <h3>Discover the latest arrivals.</h3>
-                  <button 
-                  type = "button"
-                  className="arrival-shop-btn"
-                  onClick={() => navigate("/apple")}>
+                  <button
+                    type="button"
+                    className="arrival-shop-btn"
+                    onClick={() => navigate("/apple")}
+                  >
                     Shop Now
                   </button>
                 </div>
                 <div className="arrival-promo-image">
                   <img src={macBook} alt="Mac Series" />
-                </div>
-              </div>
-            </div>
-          </FadeUp>
-        </section>
-
-        <section className="accessories-banner-section">
-          <FadeUp delay={0.25}>
-            <div className="accessories-banner">
-              <div className="accessories-banner-image">
-                <img src={all} alt="Apple Accessories" />
-              </div>
-
-              <div className="accessories-banner-content-a">
-                <h2 className="gradient-text">All Accessories</h2>
-                <p>
-                  Keep your devices safe and stylish with premium accessories for
-                  everyday use.
-                </p>
-
-                <div className="accessories-banner-buttons">
-                  <button className="accessory-pill-btn" onClick={() => navigate("/accessories")}>
-                    Watches
-                  </button>
-                  <button className="accessory-pill-btn" onClick={() => navigate("/accessories")}>
-                    AirPods
-                  </button>
-                  <button className="accessory-pill-btn" onClick={() => navigate("/accessories")}>
-                    Airtags
-                  </button>
-                  <button className="accessory-pill-btn" onClick={() => navigate("/accessories")}>
-                    Cases
-                  </button>
                 </div>
               </div>
             </div>
@@ -369,7 +433,9 @@ export default function TradeInPage() {
                 <img src={service} alt="Service Center" />
                 <div className="hover-card-content">
                   <h3>Accessories</h3>
-                  <button onClick={() => navigate("/accessories")}>Explore</button>
+                  <button onClick={() => navigate("/accessories")}>
+                    Explore
+                  </button>
                 </div>
               </div>
             </FadeUp>
@@ -379,7 +445,9 @@ export default function TradeInPage() {
                 <img src={jbl} alt="Speakers" />
                 <div className="hover-card-content">
                   <h3>Speakers</h3>
-                  <button onClick={() => navigate("/products/list")}>Explore</button>
+                  <button onClick={() => navigate("/products/list")}>
+                    Explore
+                  </button>
                 </div>
               </div>
             </FadeUp>
@@ -388,8 +456,8 @@ export default function TradeInPage() {
               <div className="hover-card">
                 <img src={icon} alt="Our Stores" />
                 <div className="hover-card-content">
-                  <h3>About us</h3>
-                  <button onClick={() => navigate("/about")}>Find Store</button>
+                  <h3>Camera</h3>
+                  <button onClick={() => navigate("/about")}>Explore</button>
                 </div>
               </div>
             </FadeUp>

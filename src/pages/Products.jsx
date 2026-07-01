@@ -109,6 +109,8 @@ const Products = () => {
   const [selectedBrands, setSelectedBrands] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const searchQuery = searchParams.get("search") || "";
+  const [sidebarOpen, setSidebarOpen] = useState(false); 
+  const [sortOpen, setSortOpen] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
@@ -227,122 +229,148 @@ const Products = () => {
       </div>
 
       <div className="products-content-wrapper">
-        <aside className="products-sidebar">
-          <div className="filter-group">
-            <h3>Collections</h3>
-            <Link className="products-collection-link" to="/products">
-              Back to category page
-            </Link>
-            {activeSegment && (
-              <div className="products-active-chip">{activeSegment.title}</div>
-            )}
-          </div>
+        {/* Filter toggle button */}
+<button
+  className="filter-toggle-btn"
+  onClick={() => setSidebarOpen(true)}
+>
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="4" y1="6" x2="20" y2="6"/>
+    <line x1="4" y1="12" x2="14" y2="12"/>
+    <line x1="4" y1="18" x2="10" y2="18"/>
+  </svg>
+  Filters
+  {(selectedBrands.length + selectedCategories.length) > 0 && (
+    <span className="filter-badge">
+      {selectedBrands.length + selectedCategories.length}
+    </span>
+  )}
+</button>
 
-          <div className="filter-group">
-            <h3>Price Range</h3>
-            <div className="price-slider-container">
-              <div className="price-slider-track">
-                <div
-                  className="price-slider-fill"
-                  style={{
-                    left: `${minPercent}%`,
-                    width: `${maxPercent - minPercent}%`,
-                  }}
-                />
-                <input
-                  type="range"
-                  min={MIN_PRICE}
-                  max={MAX_PRICE}
-                  step={1000}
-                  value={minVal}
-                  onChange={handleMinChange}
-                  className="price-range-input price-range-min"
-                  style={{ zIndex: minVal >= maxVal - 10000 ? 5 : 3 }}
-                />
-                <input
-                  type="range"
-                  min={MIN_PRICE}
-                  max={MAX_PRICE}
-                  step={1000}
-                  value={maxVal}
-                  onChange={handleMaxChange}
-                  className="price-range-input price-range-max"
-                />
-              </div>
-              <div className="price-labels">
-                <span>{minVal.toLocaleString()} LKR</span>
-                <span>{maxVal.toLocaleString()} LKR</span>
-              </div>
-            </div>
-          </div>
+{/* Overlay */}
+{sidebarOpen && (
+  <div
+    className="sidebar-overlay"
+    onClick={() => setSidebarOpen(false)}
+  />
+)}
 
-          <div className="filter-group">
-            <div className="filter-heading-row">
-              <h3>Brand</h3>
-              {!!selectedBrands.length && (
-                <button
-                  type="button"
-                  className="filter-reset-btn"
-                  onClick={() => setSelectedBrands([])}
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            {availableBrands.map((brand) => (
-              <label key={brand} className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={selectedBrands.includes(brand)}
-                  onChange={() =>
-                    toggleSelection(brand, selectedBrands, setSelectedBrands)
-                  }
-                />
-                {brand}
-              </label>
-            ))}
-          </div>
+{/* Sidebar drawer */}
+<aside className={`products-sidebar ${sidebarOpen ? "products-sidebar--open" : ""}`}>
+  <div className="sidebar-header">
+    <span className="sidebar-title">Filters</span>
+    <button
+      className="sidebar-close-btn"
+      onClick={() => setSidebarOpen(false)}
+      aria-label="Close filters"
+    >
+      ✕
+    </button>
+  </div>
 
-          <div className="filter-group">
-            <div className="filter-heading-row">
-              <h3>Category</h3>
-              {!!selectedCategories.length && (
-                <button
-                  type="button"
-                  className="filter-reset-btn"
-                  onClick={() => setSelectedCategories([])}
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            {availableCategories.map((category) => (
-              <label key={category} className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={selectedCategories.includes(category)}
-                  onChange={() =>
-                    toggleSelection(
-                      category,
-                      selectedCategories,
-                      setSelectedCategories,
-                    )
-                  }
-                />
-                {category}
-              </label>
-            ))}
-          </div>
-        </aside>
+
+  <div className="filter-group">
+    <h3>Price Range</h3>
+    <div className="price-slider-container">
+      <div className="price-slider-track">
+        <div
+          className="price-slider-fill"
+          style={{
+            left: `${minPercent}%`,
+            width: `${maxPercent - minPercent}%`,
+          }}
+        />
+        <input
+          type="range"
+          min={MIN_PRICE}
+          max={MAX_PRICE}
+          step={1000}
+          value={minVal}
+          onChange={handleMinChange}
+          className="price-range-input price-range-min"
+          style={{ zIndex: minVal >= maxVal - 10000 ? 5 : 3 }}
+        />
+        <input
+          type="range"
+          min={MIN_PRICE}
+          max={MAX_PRICE}
+          step={1000}
+          value={maxVal}
+          onChange={handleMaxChange}
+          className="price-range-input price-range-max"
+        />
+      </div>
+      <div className="price-labels">
+        <span>{minVal.toLocaleString()} LKR</span>
+        <span>{maxVal.toLocaleString()} LKR</span>
+      </div>
+    </div>
+  </div>
+
+  <div className="filter-group">
+    <div className="filter-heading-row">
+      <h3>Brand</h3>
+      {!!selectedBrands.length && (
+        <button
+          type="button"
+          className="filter-reset-btn"
+          onClick={() => setSelectedBrands([])}
+        >
+          Clear
+        </button>
+      )}
+    </div>
+    {availableBrands.map((brand) => (
+      <label key={brand} className="checkbox-label">
+        <input
+          type="checkbox"
+          checked={selectedBrands.includes(brand)}
+          onChange={() =>
+            toggleSelection(brand, selectedBrands, setSelectedBrands)
+          }
+        />
+        {brand}
+      </label>
+    ))}
+  </div>
+
+  <div className="filter-group">
+    <div className="filter-heading-row">
+      <h3>Category</h3>
+      {!!selectedCategories.length && (
+        <button
+          type="button"
+          className="filter-reset-btn"
+          onClick={() => setSelectedCategories([])}
+        >
+          Clear
+        </button>
+      )}
+    </div>
+    {availableCategories.map((category) => (
+      <label key={category} className="checkbox-label">
+        <input
+          type="checkbox"
+          checked={selectedCategories.includes(category)}
+          onChange={() =>
+            toggleSelection(
+              category,
+              selectedCategories,
+              setSelectedCategories,
+            )
+          }
+        />
+        {category}
+      </label>
+    ))}
+  </div>
+</aside>
 
         <main className="products-main">
           <div className="products-topbar">
             <div className="breadcrumbs">
               <span className="breadcrumb-path">
-                <Link to="/home">Home</Link>{" "}
-                <i className="arrow-right">{">"}</i>{" "}
-                <Link to="/products">Collections</Link>{" "}
-                <i className="arrow-right">{">"}</i>{" "}
+                <Link to="/home">Home</Link> &gt; <Link to="/products/list">Products</Link> &gt;{" "}
                 <span className="current">
                   {activeSegment?.title || "All Products"}
                 </span>
@@ -353,32 +381,26 @@ const Products = () => {
 
             <div className="sort-by">
               <label htmlFor="products-sort">Sort By</label>
-              <select
-                id="products-sort"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="Newest">Newest</option>
-                <option value="PriceLowToHigh">Price: Low to High</option>
-                <option value="PriceHighToLow">Price: High to Low</option>
-              </select>
+              <div className="sort-dropdown">
+  <button
+    className="sort-dropdown-btn"
+    onClick={() => setSortOpen(!sortOpen)}
+  >
+    {sortBy === "Newest" ? "Newest" : sortBy === "PriceHighToLow" ? "Price: High to Low" : "Price: Low to High"}
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
+  </button>
+  {sortOpen && (
+    <div className="sort-dropdown-menu">
+      <button onClick={() => { setSortBy("Newest"); setSortOpen(false); }}>Newest</button>
+      <button onClick={() => { setSortBy("PriceLowToHigh"); setSortOpen(false); }}>Price: Low to High</button>
+      <button onClick={() => { setSortBy("PriceHighToLow"); setSortOpen(false); }}>Price: High to Low</button>
+    </div>
+  )}
+</div>
             </div>
           </div>
 
-          <div className="products-page-intro">
-            <div>
-              <p className="cart-kicker">Filtered Product View</p>
-              <h1>
-                {searchQuery
-                  ? `Search results for "${searchQuery}"`
-                  : activeSegment?.title || "Browse all products"}
-              </h1>
-              <p className="gradient">
-                Refine by live brand and category data, or return to the
-                category slider for a faster collection-first experience.
-              </p>
-            </div>
-          </div>
+          
 
           <div className="products-grid-custom">
             {filteredProducts.length > 0 ? (
