@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { signOut, sendPasswordResetEmail } from "firebase/auth";
+import { signOut, sendPasswordResetEmail, fetchSignInMethodsForEmail } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -1749,6 +1749,281 @@ function CrudPanel({ title, collectionName, fields, search, primaryKey, descript
   );
 }
 
+/* ─── Users Customer Panel ─────────────────────────────────────────────────
+   Reads from the `users` collection (role === "customer"), shows a Google
+   badge for accounts that signed in via Google, and hides password-reset
+   actions for Google-only users.
+─────────────────────────────────────────────────────────────────────────── */
+function UsersCustomerPanel({ search }) {
+  const [users, setUsers] = useState([]);
+  const [busy, setBusy] = useState(true);
+  const [editModal, setEditModal] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, 'users'),
+      (snap) => {
+        const customers = snap.docs
+          .map((d) => ({ uid: d.id, ...d.data() }))
+          .filter((u) => String(u.role || '').toLowerCase() === 'customer')
+          .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+        setUsers(customers);
+        setBusy(false);
+      },
+      (err) => { console.error('UsersCustomerPanel load error:', err); setUsers([]); setBusy(false); }
+    );
+    return unsub;
+  }, []);
+
+  const term = (search || '').trim().toLowerCase();
+  const filtered = users.filter((u) =>
+    !term ||
+    [u.fullName, u.firstName, u.lastName, u.email, u.phone, u.status, u.provider]
+      .filter(Boolean).some((v) => String(v).toLowerCase().includes(term))
+  );
+
+  const googleCount   = users.filter((u) => u.provider === 'google').length;
+  const emailCount    = users.filter((u) => u.provider !== 'google').length;
+  const activeCount   = users.filter((u) => String(u.status || '').toLowerCase() === 'active').length;
+
+  const fmtDate = (value) => {
+    if (!value) return '—';
+    const d = value?.toDate ? value.toDate() : new Date(value);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getName = (u) =>
+    u.fullName ||
+    [u.firstName, u.lastName].filter(Boolean).join(' ').trim() ||
+    u.email ||
+    '—';
+
+  const openEdit = (u) => {
+    setEditForm({
+      fullName: u.fullName || [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || '',
+      email:    u.email   || '',
+      phone:    u.phone   || '',
+      status:   u.status  || 'active',
+    });
+    setEditModal(u);
+    setEditError('');
+  };
+
+  const saveEdit = async () => {
+    if (!editForm.fullName?.trim()) { setEditError('Full name is required.'); return; }
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'users', editModal.uid), {
+        fullName:  editForm.fullName.trim(),
+        phone:     editForm.phone.trim(),
+        status:    editForm.status.trim(),
+        updatedAt: serverTimestamp(),
+      });
+      setEditModal(null);
+    } catch (err) {
+      console.error('Failed to update user:', err);
+      setEditError('Save failed. Please try again.');
+    } finally { setSaving(false); }
+  };
+
+  const GoogleBadge = () => (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700,
+      padding: '3px 9px', borderRadius: 20,
+      background: 'rgba(66,133,244,0.15)', color: '#4285F4',
+      border: '1px solid rgba(66,133,244,0.35)',
+    }}>
+      <svg width="11" height="11" viewBox="0 0 48 48">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Google Login
+    </span>
+  );
+
+  const EmailBadge = () => (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700,
+      padding: '3px 9px', borderRadius: 20,
+      background: 'rgba(34,197,94,0.12)', color: 'var(--green)',
+      border: '1px solid rgba(34,197,94,0.3)',
+    }}>
+      ✉ Email / Password
+    </span>
+  );
+
+  return (
+    <>
+      {/* Stats row */}
+      <div className="ap-grid-4">
+        <div className="ap-stat-card blue">
+          <div className="ap-stat-icon blue">👥</div>
+          <div className="ap-stat-label">Total Customers</div>
+          <div className="ap-stat-value">{users.length}</div>
+          <div className="ap-stat-sub">Registered accounts</div>
+        </div>
+        <div className="ap-stat-card green">
+          <div className="ap-stat-icon green">✓</div>
+          <div className="ap-stat-label">Active</div>
+          <div className="ap-stat-value" style={{ color: 'var(--green)' }}>{activeCount}</div>
+          <div className="ap-stat-sub">Active accounts</div>
+        </div>
+        <div className="ap-stat-card blue" style={{ '--accent': '#4285F4' }}>
+          <div className="ap-stat-icon blue" style={{ background: 'rgba(66,133,244,0.15)', color: '#4285F4' }}>G</div>
+          <div className="ap-stat-label">Google Login</div>
+          <div className="ap-stat-value" style={{ color: '#4285F4' }}>{googleCount}</div>
+          <div className="ap-stat-sub">Signed in via Google</div>
+        </div>
+        <div className="ap-stat-card purple">
+          <div className="ap-stat-icon purple">✉</div>
+          <div className="ap-stat-label">Email / Password</div>
+          <div className="ap-stat-value" style={{ color: 'var(--purple)' }}>{emailCount}</div>
+          <div className="ap-stat-sub">Standard accounts</div>
+        </div>
+      </div>
+
+      {/* Security notice for Google accounts */}
+      <div className="ap-panel" style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 20px' }}>
+        <div style={{ width: 34, height: 34, borderRadius: 8, background: 'rgba(66,133,244,0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg width="16" height="16" viewBox="0 0 48 48">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+        </div>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 3 }}>Google Login Customers — Security Note</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
+            Customers marked <strong style={{ color: '#4285F4' }}>Google Login</strong> authenticated via Google OAuth and have <strong style={{ color: 'var(--text)' }}>no password</strong>.
+            Password reset emails are <strong style={{ color: 'var(--red)' }}>blocked</strong> for these accounts — even from the admin panel — to prevent account hijacking.
+            These customers can only sign in using the <strong style={{ color: 'var(--text)' }}>"Continue with Google"</strong> button.
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="ap-panel">
+        <div className="ap-panel-title">
+          Customer Accounts
+          <span className="ap-panel-sub">{filtered.length} {filtered.length === 1 ? 'customer' : 'customers'} · newest first</span>
+        </div>
+        <div className="ap-table-wrap">
+          <table className="ap-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Login Method</th>
+                <th>Status</th>
+                <th>Joined</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {busy && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>Loading...</td></tr>}
+              {!busy && filtered.length === 0 && (
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 36, color: 'var(--muted)' }}>
+                  {users.length === 0
+                    ? 'No customer accounts yet. Customers appear here automatically when they register or sign in with Google.'
+                    : 'No customers match your search.'}
+                </td></tr>
+              )}
+              {!busy && filtered.map((u) => (
+                <tr key={u.uid} className="data-row">
+                  <td style={{ fontWeight: 600 }}>
+                    {getName(u)}
+                    {u.photoURL && (
+                      <img
+                        src={u.photoURL}
+                        alt=""
+                        style={{ width: 22, height: 22, borderRadius: '50%', marginLeft: 8, verticalAlign: 'middle', border: '1.5px solid rgba(66,133,244,0.4)' }}
+                        referrerPolicy="no-referrer"
+                      />
+                    )}
+                  </td>
+                  <td style={{ fontSize: 12, color: 'var(--text-dim)' }}>{u.email || '—'}</td>
+                  <td style={{ fontSize: 12, color: 'var(--text-dim)' }}>{u.phone || '—'}</td>
+                  <td>{u.provider === 'google' ? <GoogleBadge /> : <EmailBadge />}</td>
+                  <td>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, display: 'inline-block',
+                      background: String(u.status || '').toLowerCase() === 'active' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                      color: String(u.status || '').toLowerCase() === 'active' ? 'var(--green)' : 'var(--red)',
+                      border: String(u.status || '').toLowerCase() === 'active' ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)',
+                    }}>
+                      {u.status || 'active'}
+                    </span>
+                  </td>
+                  <td style={{ fontSize: 12, color: 'var(--text-dim)' }}>{fmtDate(u.createdAt)}</td>
+                  <td>
+                    <button className="ap-action-btn" onClick={() => openEdit(u)}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      Edit
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Edit modal */}
+      {editModal && (
+        <div className="ap-modal-overlay" onClick={() => setEditModal(null)}>
+          <div className="ap-modal" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+            <div className="ap-modal-header">
+              <div className="ap-modal-title">Edit Customer</div>
+              <button className="ap-modal-close" onClick={() => setEditModal(null)}>×</button>
+            </div>
+            {editError && <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{editError}</div>}
+
+            {/* Google account info banner */}
+            {editModal.provider === 'google' && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                background: 'rgba(66,133,244,0.1)', border: '1px solid rgba(66,133,244,0.25)',
+                borderRadius: 10, marginBottom: 16, fontSize: 12, color: '#4285F4',
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                This is a <strong style={{ margin: '0 3px' }}>Google Login</strong> account. Email cannot be changed here — it is managed by Google.
+              </div>
+            )}
+
+            <div className="ap-form-group">
+              <label className="ap-form-label">Full Name</label>
+              <input className="ap-form-input" value={editForm.fullName} onChange={(e) => setEditForm((p) => ({ ...p, fullName: e.target.value }))} placeholder="Kasun Perera" />
+            </div>
+            <div className="ap-form-group">
+              <label className="ap-form-label">Email{editModal.provider === 'google' ? ' (Google — read only)' : ''}</label>
+              <input className="ap-form-input" value={editForm.email} readOnly style={{ opacity: 0.5, cursor: 'not-allowed' }} />
+            </div>
+            <div className="ap-form-group">
+              <label className="ap-form-label">Phone</label>
+              <input className="ap-form-input" value={editForm.phone} onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))} placeholder="077 123 4567" />
+            </div>
+            <div className="ap-form-group">
+              <label className="ap-form-label">Status</label>
+              <input className="ap-form-input" value={editForm.status} onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))} placeholder="active" />
+            </div>
+            <button className="ap-submit-btn" onClick={saveEdit} disabled={saving}>
+              {saving ? 'Saving…' : 'Update Customer'}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function exportCommercePdf(orders, cartItems) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = 210, pageHeight = 297, margin = 14;
@@ -2312,9 +2587,15 @@ function PasswordResetsPanel({ resets, search, onAdminSend, onResolve }) {
     if (status === 'requested') return { background: 'rgba(245,158,11,0.15)', color: 'var(--amber)', border: '1px solid rgba(245,158,11,0.3)' };
     if (status === 'admin_sent') return { background: 'rgba(59,130,246,0.15)', color: 'var(--accent)', border: '1px solid rgba(59,130,246,0.3)' };
     if (status === 'resolved') return { background: 'rgba(34,197,94,0.12)', color: 'var(--green)', border: '1px solid rgba(34,197,94,0.3)' };
+    if (status === 'blocked_google_account') return { background: 'rgba(239,68,68,0.12)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.3)' };
     return { background: 'rgba(255,255,255,0.05)', color: 'var(--muted)' };
   };
-  const badgeLabel = (status) => ({ requested: 'Requested', admin_sent: 'Email Sent', resolved: 'Resolved' }[status] || status || 'Unknown');
+  const badgeLabel = (status) => ({
+    requested: 'Requested',
+    admin_sent: 'Email Sent',
+    resolved: 'Resolved',
+    blocked_google_account: '🔒 Google — Blocked',
+  }[status] || status || 'Unknown');
   const fmtDate = (value) => { if (!value) return '—'; const d = value?.toDate ? value.toDate() : new Date(value); if (Number.isNaN(d.getTime())) return '—'; return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
 
   const handleSend = async (r) => { setSendingId(r.id); try { await onAdminSend(r.email, r.id); } finally { setSendingId(''); } };
@@ -2433,6 +2714,25 @@ export default function AdminPanel() {
 
   const adminSendPasswordReset = async (email, resetId) => {
     try {
+      // Security check: do NOT send password reset to Google-only accounts.
+      // Doing so would let anyone who knows the email hijack the account.
+      let methods = [];
+      try { methods = await fetchSignInMethodsForEmail(auth, email); } catch (_) {}
+      if (methods.length > 0 && !methods.includes('password') && methods.includes('google.com')) {
+        alert(
+          `⚠️ Security Block\n\nThis email (${email}) belongs to a Google Sign-In account.\n\nPassword reset emails cannot be sent to Google accounts — the account has no password to reset. The customer must always sign in using the "Continue with Google" button.`
+        );
+        // Log the blocked attempt
+        try {
+          await updateDoc(doc(db, 'passwordResets', resetId), {
+            status: 'blocked_google_account',
+            blockedAt: serverTimestamp(),
+            blockedBy: auth.currentUser?.email || 'Admin',
+            note: 'Admin reset blocked — Google-only account has no password.',
+          });
+        } catch (_) {}
+        return;
+      }
       await sendPasswordResetEmail(auth, email);
       await updateDoc(doc(db, 'passwordResets', resetId), { status: 'admin_sent', adminSentAt: serverTimestamp(), adminSentBy: auth.currentUser?.email || 'Admin' });
     } catch (err) { console.error('Admin reset send failed:', err); alert('Failed to send reset email. Check the address is valid in Firebase Auth.'); }
@@ -2545,7 +2845,7 @@ export default function AdminPanel() {
               {tab === 'employeeAccess' && <EmployeeAccessPanel requests={employeeRequests} search={search} onUpdateStatus={updateEmployeeAccess} savingId={requestSavingId} />}
               {tab === 'settings' && <Settings records={liveRecords} thresholds={thresholds} setThresholds={setThresholds} adminPortalCode={adminPortalCode} setAdminPortalCode={setAdminPortalCode} onSaveAdminPortalCode={saveAdminPortalCode} portalCodeSaving={portalCodeSaving} />}
               {tab === 'product' && <ProductAdmin />}
-              {tab === 'customer' && <CrudPanel title="Customer Details" collectionName="customers" fields={CUSTOMER_FIELDS} primaryKey="Customer" description="Manage customer profiles stored in Firebase." search={search} />}
+              {tab === 'customer' && <UsersCustomerPanel search={search} />}
               {tab === 'passwordResets' && <PasswordResetsPanel resets={passwordResets} search={search} onAdminSend={adminSendPasswordReset} onResolve={markResetResolved} />}
               {tab === 'reviews' && <CrudPanel title="Customer Reviews" collectionName="customerReviews" fields={REVIEW_FIELDS} primaryKey="Review" description="Messages submitted from the Contact Us page." search={search} />}
               {tab === 'orders' && <CommercePanel search={search} />}
