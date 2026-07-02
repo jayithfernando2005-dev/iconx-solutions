@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -69,17 +69,35 @@ const ProductCategories = () => {
   const [transitioning, setTransitioning] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const intervalRef = useRef(null);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, []);
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  restartAutoSlide();
+  return () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+  };
+}, []);
 
   const switchCategory = (index) => {
     if (index === activeIndex || transitioning) return;
     setTransitioning(true);
     setActiveIndex(index);
     setTimeout(() => setTransitioning(false), 500);
+    restartAutoSlide();
   };
+
+  const restartAutoSlide = () => {
+  if (intervalRef.current) clearInterval(intervalRef.current);
+  intervalRef.current = setInterval(() => {
+    setActiveIndex((prevIndex) => {
+      const nextIndex = (prevIndex + 1) % categoryCards.length;
+      setTransitioning(true);
+      setTimeout(() => setTransitioning(false), 500);
+      return nextIndex;
+    });
+  }, 4000); // 4s per slide — change this number to adjust timing
+};
 
   const active = categoryCards[activeIndex];
 

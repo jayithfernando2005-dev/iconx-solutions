@@ -569,10 +569,6 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="lp-footer-bar">
-        © 2025 iconX Mobile Store. All rights reserved.
-      </div>
 
     </div>
   );

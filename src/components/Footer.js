@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import "./Footer.css";
 import { FaFacebook, FaInstagram, FaTwitter, FaWhatsapp } from "react-icons/fa";
 import iconxLogo from "../images/logo.png";
+import axonLogo from "../images/erasebg-transformed (1).png"; // adjust path/filename to match your file
 
 const IconXLogo = () => (
   <div className="footer-logo-wrap" aria-label="IconX Mobile Store">
@@ -108,9 +109,17 @@ const Footer = () => {
       </div>
 
       {/* ── Bottom Bar ── */}
-      <div className="footer-bottom">
-        <span>All Rights Reserved © ICONX2026</span>
-      </div>
+     <div className="footer-bottom">
+  <span>All Rights Reserved ©  <span className="footer-bottom-sep">|</span> 
+  <span className="footer-bottom-credit">
+    Designed & Developed by <img
+      src={axonLogo}
+      alt="Axon"
+      className="footer-bottom-axon-logo"
+    />
+  </span>
+  </span>
+</div>
 
     </footer>
   );

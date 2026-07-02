@@ -397,8 +397,8 @@ body {
   overflow: hidden;
   isolation: isolate;
   background: transparent;
-  border: 1.5px solid #111827;
-  color: #111827;
+  border: 1.5px solid #000000b4;
+  color: #000000b4;
   padding: 16px 28px;
   border-radius: 999px;
   font-size: 15px;
@@ -645,31 +645,66 @@ body {
 .tradein-text {
   font-size: 16px;
   opacity: 0.9;
-  margin-bottom: 25px;
+  margin-bottom: 25px !important;
+  margin-top: 5px !important;
 }
 
 .tradein-btn {
+  display: inline-flex;
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 14px 28px;
-  background: #0071e3;
-  color: rgb(255, 255, 255);
+  background: #ffffff;
+  border: 1.5px solid #000000b4;
+  color: #000000b4;
+  padding: 16px 28px;
   border-radius: 999px;
-  font-weight: 400;
-  font-size: 15px !important;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.3s ease;
   text-decoration: none;
-  transition: background-color 0.3s ease, color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .tradein-btn:hover {
-  background: #0159b0;
+  background: #000000b4;
   color: white;
 }
 
+.tradein-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(
+    120deg,
+    transparent,
+    rgba(255, 255, 255, 0.45),
+    transparent
+  );
+  transform: skewX(-20deg);
+}
+
+.tradein-btn:hover::before {
+  animation: shine 1.5s ease ;
+}
+
+.tradein-btn > * {
+  position: relative;
+  z-index: 2;
+}
+
+@keyframes shine {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 120%;
+  }
+}
 
 
 /*Accessories Banner*/

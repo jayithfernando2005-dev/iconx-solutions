@@ -461,8 +461,8 @@ export default function Signup() {
                     {agreed && <Icon.check />}
                   </div>
                   <span>
-                    I agree to the iconX{' '}
-                    <a href="#terms">Terms of Service</a> and{' '}
+                    I agree to the Icox{' '}
+                    <a href="#terms">Terms & Conditions</a> and{' '}
                     <a href="#privacy">Privacy Policy</a>
                   </span>
                 </div>
@@ -472,25 +472,20 @@ export default function Signup() {
                   <span className="sp-btn-shimmer" />
                   {loading
                     ? <><span className="sp-spinner" /> Creating account...</>
-                    : 'Create Account →'
+                    : 'Create Account '
                   }
                 </button>
 
               </form>
 
-              <div className="sp-footer">
-                Your data is stored securely in Firebase and encrypted at rest.
-              </div>
+      
             </>
           )}
         </div>
 
       </div>
 
-      {/* Footer bar */}
-      <div className="sp-footer-bar">
-        © 2025 iconX Mobile Store. All rights reserved.
-      </div>
+
 
     </div>
   );

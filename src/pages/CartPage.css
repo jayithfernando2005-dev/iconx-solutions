@@ -7,9 +7,16 @@
 .cart-hero {
   max-width: 1400px;
   margin: 0 auto 28px;
-  padding: 38px 40px;
+  padding: 30px 40px;
   border-radius: 32px;
-  background: #ffffff;
+  background: linear-gradient(
+  to left,
+  #3c9edf 0%,
+  #d4e8f5 45%,
+  #e8f2f8 50%,
+  #ffffff 60%,
+  #ffffff 100%
+  );
   color: #000000;
   display: grid;
   grid-template-columns: 1.5fr 0.75fr;
@@ -30,6 +37,7 @@
   color: #6b7280;
   justify-content: flex-start !important;
   align-items: flex-start !important;
+  margin-top: 0px !important;
 }
 
 

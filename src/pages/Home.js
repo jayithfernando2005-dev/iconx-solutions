@@ -362,7 +362,7 @@ const Home = () => {
             Switch to your new device and save on your next upgrade.
           </p>
           <a href="/trade-in" className="tradein-btn">
-            Check switch value
+            Check Switch Value
           </a>
         </div>
       </section>

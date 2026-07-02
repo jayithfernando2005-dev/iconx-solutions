@@ -162,8 +162,7 @@ export default function CartPage() {
         <section className="cart-hero">
           <div>
             <p className="cart-kicker">Your Cart</p>
-            <h1 className="gradient-text-z">Review your order before checkout.</h1>
-            <p className="gradient">Review your selections and complete your order smoothly.</p>
+            <h1 className="gradient-text-z">Review your order before checkout</h1>
           </div>
           <div className="cart-hero-total">
             <span>Current total</span>
