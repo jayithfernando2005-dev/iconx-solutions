@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../../firebase";
 import {
   SALES_CATEGORIES,
   formatDateLabel,
@@ -64,6 +66,32 @@ export default function AttendanceEmployeeView({ currentEmployee, attendanceReco
   const [form, setForm] = useState(() => buildEmployeeForm(currentEmployee?.uid, todayKey(), null));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  
+  const [securityCode, setSecurityCode] = useState(currentEmployee?.employeeSecurityCode || "");
+  const [codeSaving, setCodeSaving] = useState(false);
+  const [codeMessage, setCodeMessage] = useState("");
+
+  const handleSaveSecurityCode = async (e) => {
+    e.preventDefault();
+    if (!securityCode.trim()) {
+      setCodeMessage("Security code cannot be empty.");
+      return;
+    }
+    setCodeSaving(true);
+    setCodeMessage("");
+    try {
+      await updateDoc(doc(db, "users", currentEmployee.uid), {
+        employeeSecurityCode: securityCode.trim(),
+        updatedAt: serverTimestamp()
+      });
+      setCodeMessage("Security code updated successfully.");
+    } catch (err) {
+      console.error("Failed to update security code:", err);
+      setCodeMessage("Failed to update security code. Please try again.");
+    } finally {
+      setCodeSaving(false);
+    }
+  };
 
   const employeeRecords = useMemo(
     () => attendanceRecords
@@ -270,6 +298,33 @@ export default function AttendanceEmployeeView({ currentEmployee, attendanceReco
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="employee-admin-panel" style={{ marginTop: 24 }}>
+        <div className="employee-admin-panel-head">
+          <div>
+            <h2>Staff Portal Access Code</h2>
+            <p>Set a custom security code for logging into the Staff Portal. Keep it secure like a password.</p>
+          </div>
+        </div>
+        <form className="employee-admin-form" onSubmit={handleSaveSecurityCode} style={{ maxWidth: 480 }}>
+          <label>
+            Custom Staff Security Code
+            <input 
+              className="employee-admin-date" 
+              type="text" 
+              value={securityCode} 
+              onChange={(e) => setSecurityCode(e.target.value)} 
+              placeholder="e.g. MyCode123!"
+              required
+              style={{ width: '100%', marginTop: 6 }}
+            />
+          </label>
+          {codeMessage && <div className="employee-admin-message" style={{ color: codeMessage.includes('successfully') ? 'var(--green)' : 'var(--red)', marginTop: 10 }}>{codeMessage}</div>}
+          <button className="employee-admin-primary" type="submit" disabled={codeSaving} style={{ marginTop: 12 }}>
+            {codeSaving ? "Updating Code..." : "Update Security Code"}
+          </button>
+        </form>
       </section>
     </>
   );

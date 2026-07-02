@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import "./Footer.css";
 import { FaFacebook, FaInstagram, FaTwitter, FaWhatsapp } from "react-icons/fa";
 import iconxLogo from "../images/logo.png";
+import poweredByLogo from "../assets/3D_Image.png";
 
 const IconXLogo = () => (
   <div className="footer-logo-wrap" aria-label="IconX Mobile Store">
@@ -110,6 +111,11 @@ const Footer = () => {
       {/* ── Bottom Bar ── */}
       <div className="footer-bottom">
         <span>All Rights Reserved © ICONX2026</span>
+        <span className="footer-bottom-sep">|</span>
+        <div className="footer-powered-by">
+          <span>Powered By</span>
+          <img src={poweredByLogo} alt="Powered by logo" className="footer-powered-by-logo" />
+        </div>
       </div>
 
     </footer>

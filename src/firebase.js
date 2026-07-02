@@ -7,7 +7,7 @@ import {
   deleteDoc, doc, updateDoc, query, orderBy 
 } from "firebase/firestore";
 
-const firebaseConfig = {
+export const firebaseConfig = {
   // Replace with your actual config from the Firebase Console
   apiKey: "AIzaSyAcTz_t6In9YEh5sHBjaTVcIYQLIreAiV4",
   authDomain: "iconx-1a576.firebaseapp.com",

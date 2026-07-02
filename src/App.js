@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import SplashScreen from "./pages/SplashScreen";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import Resetpassword from "./pages/Resetpassword";
 import AdminPanel from "./pages/adminpanel/AdminPanel";
 import EmployeeAdminPanel from "./pages/adminpanel/EmployeeAdminPanel";
 import ProtectedAdminRoute from "./components/ProtectedAdminRoute";
@@ -29,6 +30,7 @@ function App() {
         {/* Auth */}
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/reset-password" element={<Resetpassword />} />
         <Route path="/home" element={<Home />} />
 
         {/* Products */}

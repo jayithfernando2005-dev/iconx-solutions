@@ -591,6 +591,7 @@ export default function Attendance({
   Tip,
   onExportPdf,
   onExportCsv,
+  notify,
 }) {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -630,9 +631,11 @@ export default function Attendance({
       if (isNew) {
         const saved = await fbAdd(rec);
         setRecords((prev) => [...prev, saved]);
+        notify && notify(`Salary record added for ${rec.staffId}.`, 'success', 'Salary');
       } else {
         await fbUpdate(rec.id, rec);
         setRecords((prev) => prev.map((r) => (r.id === rec.id ? rec : r)));
+        notify && notify(`Salary record updated for ${rec.staffId}.`, 'success', 'Salary');
       }
     } catch (err) {
       console.error("Save failed:", err);
@@ -640,6 +643,7 @@ export default function Attendance({
       setRecords((prev) =>
         isNew ? [...prev, rec] : prev.map((r) => (r.id === rec.id ? rec : r)),
       );
+      notify && notify(`Failed to save record for ${rec.staffId}: ${err.message}`, 'error', 'Salary');
     } finally {
       setSaving(false);
       setEditing(null);
@@ -652,9 +656,11 @@ export default function Attendance({
     try {
       await fbDelete(id);
       setRecords((prev) => prev.filter((x) => x.id !== id));
+      notify && notify(`Salary record deleted.`, 'warn', 'Salary');
     } catch (err) {
       console.error("Delete failed:", err);
       setRecords((prev) => prev.filter((x) => x.id !== id));
+      notify && notify(`Failed to delete record: ${err.message}`, 'error', 'Salary');
     } finally {
       setSaving(false);
     }

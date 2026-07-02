@@ -289,7 +289,6 @@ export default function Signup() {
                     {[
                       { val: 'customer', icon: '👤', label: 'Customer' },
                       { val: 'employee', icon: '🏷️', label: 'Employee' },
-                      { val: 'admin',    icon: '⚙️', label: 'Admin' },
                     ].map(r => (
                       <button
                         key={r.val} type="button"

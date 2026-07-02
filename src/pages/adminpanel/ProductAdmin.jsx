@@ -315,7 +315,7 @@ const exportProductsPdf = (products) => {
 /* ═══════════════════════════════════════════════════
    ADD / EDIT PRODUCT FORM
 ═══════════════════════════════════════════════════ */
-function ProductForm({ existing, onBack }) {
+function ProductForm({ existing, onBack, notify }) {
   const [form, setForm] = useState(
     existing
       ? {
@@ -520,17 +520,21 @@ function ProductForm({ existing, onBack }) {
           ...payload,
           updatedAt: serverTimestamp(),
         });
+        notify && notify(`Product "${payload.name}" updated successfully.`, 'success', 'Product Details');
       } else {
         await addDoc(collection(db, "products"), {
           ...payload,
           createdAt: serverTimestamp(),
         });
+        notify && notify(`Product "${payload.name}" added successfully.`, 'success', 'Product Details');
       }
 
       onBack();
     } catch (err) {
       console.error("Save product error:", err);
-      setError(getUploadErrorMessage(err));
+      const errMsg = getUploadErrorMessage(err);
+      setError(errMsg);
+      notify && notify(`Failed to save product: ${errMsg}`, 'error', 'Product Details');
     } finally {
       setLoading(false);
     }
@@ -868,7 +872,7 @@ function ProductForm({ existing, onBack }) {
 /* ═══════════════════════════════════════════════════
    PRODUCT LIST
 ═══════════════════════════════════════════════════ */
-function ProductList({ onAdd, onEdit }) {
+function ProductList({ onAdd, onEdit, notify }) {
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
   const [catFilter, setCat] = useState("all");
@@ -893,13 +897,15 @@ function ProductList({ onAdd, onEdit }) {
     return unsub;
   }, []);
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, name) => {
     if (!window.confirm("Delete this product?")) return;
 
     try {
       await deleteDoc(doc(db, "products", id));
+      notify && notify(`Product "${name}" deleted successfully.`, 'warn', 'Product Details');
     } catch (e) {
       console.error("Delete product:", e);
+      notify && notify(`Failed to delete product: ${e.message}`, 'error', 'Product Details');
     }
   };
 
@@ -1089,7 +1095,7 @@ function ProductList({ onAdd, onEdit }) {
                       <button
                         className="btn-delete"
                         title="Delete"
-                        onClick={() => handleDelete(product.id)}
+                        onClick={() => handleDelete(product.id, product.name)}
                       >
                         ✕
                       </button>
@@ -1108,7 +1114,7 @@ function ProductList({ onAdd, onEdit }) {
 /* ═══════════════════════════════════════════════════
    ROOT EXPORT — rendered by AdminPanel tab === 'product'
 ═══════════════════════════════════════════════════ */
-export default function ProductAdmin() {
+export default function ProductAdmin({ notify }) {
   const [view, setView] = useState("list");
   const [editing, setEditing] = useState(null);
 
@@ -1128,8 +1134,8 @@ export default function ProductAdmin() {
   };
 
   if (view === "add" || view === "edit") {
-    return <ProductForm existing={editing} onBack={goBack} />;
+    return <ProductForm existing={editing} onBack={goBack} notify={notify} />;
   }
 
-  return <ProductList onAdd={goAdd} onEdit={goEdit} />;
+  return <ProductList onAdd={goAdd} onEdit={goEdit} notify={notify} />;
 }

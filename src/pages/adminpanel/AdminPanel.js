@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { signOut, sendPasswordResetEmail, fetchSignInMethodsForEmail } from "firebase/auth";
+import { initializeApp, deleteApp } from "firebase/app";
+import { signOut, sendPasswordResetEmail, createUserWithEmailAndPassword, updateProfile, updatePassword, getAuth } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -10,8 +11,8 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import logo from "../../images/logo.png";
 import { loadLogo, drawHeader, drawFooter, drawSectionHeader, PDF_COLORS } from "../../utils/pdfTheme";
-import { auth, db } from "../../firebase";
-import { addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { auth, db, firebaseConfig } from "../../firebase";
+import { addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc, query, where, getDocs } from "firebase/firestore";
 import AttendancePanel from "./Attendance";
 import ProductAdmin    from "./ProductAdmin";
 import EmployeeAnalyticsPanel from "./EmployeeAnalyticsPanel";
@@ -665,6 +666,296 @@ const STYLES = `
 .ap-cart-total-val { font-family: var(--syne); font-size: 18px; font-weight: 800; color: var(--green); }
 .ap-cart-empty { text-align: center; padding: 36px 20px; color: var(--muted); }
 .ap-cart-empty-icon { font-size: 32px; opacity: 0.2; margin-bottom: 10px; }
+
+/* ── TOAST NOTIFICATIONS ───────────────────────────────────── */
+.ap-toast-container {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  pointer-events: none;
+}
+.ap-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 300px;
+  max-width: 420px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-hover);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04);
+  animation: toastIn 0.32s cubic-bezier(0.34,1.56,0.64,1);
+  position: relative;
+  overflow: hidden;
+}
+.ap-toast.leaving {
+  animation: toastOut 0.28s ease-in forwards;
+}
+.ap-toast::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  border-radius: 14px 0 0 14px;
+}
+.ap-toast.success::before { background: var(--green); }
+.ap-toast.error::before   { background: var(--red); }
+.ap-toast.info::before    { background: var(--accent); }
+.ap-toast.warn::before    { background: var(--amber); }
+.ap-toast-icon {
+  width: 34px; height: 34px; flex-shrink: 0;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.ap-toast.success .ap-toast-icon { background: rgba(34,197,94,0.14); }
+.ap-toast.error   .ap-toast-icon { background: rgba(239,68,68,0.14); }
+.ap-toast.info    .ap-toast-icon { background: rgba(59,130,246,0.14); }
+.ap-toast.warn    .ap-toast-icon { background: rgba(245,158,11,0.14); }
+.ap-toast-body { flex: 1; min-width: 0; }
+.ap-toast-section {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-bottom: 2px;
+  opacity: 0.55;
+}
+.ap-toast-msg {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.45;
+  word-break: break-word;
+}
+.ap-toast-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  flex-shrink: 0;
+  margin-top: 1px;
+  transition: color 0.15s;
+}
+.ap-toast-close:hover { color: var(--text); }
+.ap-toast-progress {
+  position: absolute;
+  bottom: 0; left: 0;
+  height: 2px;
+  border-radius: 0 0 0 14px;
+  animation: toastProgress 4s linear forwards;
+}
+.ap-toast.success .ap-toast-progress { background: var(--green); }
+.ap-toast.error   .ap-toast-progress { background: var(--red); }
+.ap-toast.info    .ap-toast-progress { background: var(--accent); }
+.ap-toast.warn    .ap-toast-progress { background: var(--amber); }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(60px) scale(0.92); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(0) scale(1); }
+  to   { opacity: 0; transform: translateX(60px) scale(0.92); }
+}
+@keyframes toastProgress {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+
+/* ── NOTIFICATION PANEL ────────────────────────────────────── */
+.ap-notification-container {
+  position: relative;
+  display: inline-block;
+}
+.ap-notification-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+.ap-notification-btn:hover {
+  background: var(--surface3);
+  color: var(--text);
+  border-color: var(--border-hover);
+}
+.ap-notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--red);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 10px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--bg);
+  animation: badge-pulse 2s infinite;
+}
+@keyframes badge-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); box-shadow: 0 0 0 2px var(--bg), 0 0 8px rgba(239, 68, 68, 0.6); }
+  100% { transform: scale(1); }
+}
+.ap-notification-dropdown {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  z-index: 1000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.ap-notification-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255,255,255,0.01);
+}
+.ap-notification-title {
+  font-family: var(--syne);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+.ap-notification-header-actions {
+  display: flex;
+  gap: 8px;
+}
+.ap-notification-header-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.ap-notification-header-btn:hover {
+  text-decoration: underline;
+  opacity: 0.8;
+}
+.ap-notification-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+.ap-notification-list::-webkit-scrollbar {
+  width: 6px;
+}
+.ap-notification-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ap-notification-list::-webkit-scrollbar-thumb {
+  background: var(--border-hover);
+  border-radius: 3px;
+}
+.ap-notification-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  position: relative;
+  text-align: left;
+}
+.ap-notification-item:hover {
+  background: var(--surface2);
+}
+.ap-notification-item.unread {
+  background: rgba(59, 130, 246, 0.03);
+}
+.ap-notification-item.unread:hover {
+  background: rgba(59, 130, 246, 0.06);
+}
+.ap-notification-item-unread-dot {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+.ap-notification-item-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.ap-notification-item.success .ap-notification-item-icon { background: rgba(34,197,94,0.14); color: var(--green); }
+.ap-notification-item.error .ap-notification-item-icon { background: rgba(239,68,68,0.14); color: var(--red); }
+.ap-notification-item.info .ap-notification-item-icon { background: rgba(59,130,246,0.14); color: var(--accent); }
+.ap-notification-item.warn .ap-notification-item-icon { background: rgba(245,158,11,0.14); color: var(--amber); }
+
+.ap-notification-item-content {
+  flex: 1;
+  min-width: 0;
+}
+.ap-notification-item-section {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+  opacity: 0.6;
+}
+.ap-notification-item-message {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.4;
+  word-break: break-word;
+}
+.ap-notification-item-time {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.ap-notification-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+.ap-notification-empty-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+  opacity: 0.3;
+}
 `;
 
 /* ─── THRESHOLD CONFIG ─────────────────────────────────────── */
@@ -927,6 +1218,7 @@ const I={
   attendance:<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
   employeeAccess:<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M17 11h6"/></svg>,
   passwordResets:<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
+  adminAccounts:<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
   settings:<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
 };
 
@@ -1318,17 +1610,169 @@ function Attendance({ records, setRecords, onGroup, fbAdd, fbUpdate, fbDelete })
   );
 }
 
+function isStrongAdminPassword(pw) {
+  return (
+    pw.length >= 12 &&
+    /[A-Z]/.test(pw) &&
+    /[a-z]/.test(pw) &&
+    /[0-9]/.test(pw) &&
+    /[^A-Za-z0-9]/.test(pw)
+  );
+}
+
 /* ─── SETTINGS ─────────────────────────────────────────────── */
-function Settings({ records, thresholds, setThresholds, adminPortalCode, setAdminPortalCode, onSaveAdminPortalCode, portalCodeSaving }) {
+function Settings({ records, thresholds, setThresholds, adminPortalCode, setAdminPortalCode, onSaveAdminPortalCode, portalCodeSaving, notify }) {
   const [local, setLocal] = useState({ ...thresholds });
   const [nextAdminCode, setNextAdminCode] = useState(adminPortalCode || DEFAULT_ADMIN_PORTAL_CODE);
   const recomputed=records.map(r=>({...r,status:getStatus(r.efficiency,local)}));
   const opt=recomputed.filter(r=>r.status==='optimal'),stb=recomputed.filter(r=>r.status==='stable'),crt=recomputed.filter(r=>r.status==='critical');
-  const apply=()=>{THRESHOLDS.optimal=local.optimal;THRESHOLDS.stable=local.stable;setThresholds({...local});};
+  const apply=()=>{
+    THRESHOLDS.optimal=local.optimal;
+    THRESHOLDS.stable=local.stable;
+    setThresholds({...local});
+    notify && notify('Efficiency thresholds applied.', 'success', 'Settings');
+  };
   const reset=()=>setLocal({optimal:75,stable:45});
   const critPct=local.stable,stbPct=local.optimal-local.stable,optPct=100-local.optimal;
 
+  // Create Admin Form State
+  const [newAdmin, setNewAdmin] = useState({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '' });
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState('');
+  const [createSuccess, setCreateSuccess] = useState('');
+
+  // Change Password Form State
+  const [passwords, setPasswords] = useState({ newPassword: '', confirmPassword: '' });
+  const [changeLoading, setChangeLoading] = useState(false);
+  const [changeError, setChangeError] = useState('');
+  const [changeSuccess, setChangeSuccess] = useState('');
+
   useEffect(() => { setNextAdminCode(adminPortalCode || DEFAULT_ADMIN_PORTAL_CODE); }, [adminPortalCode]);
+
+  const handleCreateAdmin = async (e) => {
+    e.preventDefault();
+    setCreateError('');
+    setCreateSuccess('');
+
+    const { firstName, lastName, email, password, confirmPassword } = newAdmin;
+
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password || !confirmPassword) {
+      setCreateError('All fields are required.');
+      return;
+    }
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setCreateError('Please enter a valid email address.');
+      return;
+    }
+    if (!isStrongAdminPassword(password)) {
+      setCreateError('Password must be at least 12 characters and include uppercase, lowercase, number, and special character.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setCreateError('Passwords do not match.');
+      return;
+    }
+
+    setCreateLoading(true);
+    let secondaryApp = null;
+    try {
+      const appName = "SecondaryAdminApp_" + Math.random().toString(36).substring(2, 9);
+      secondaryApp = initializeApp(firebaseConfig, appName);
+      const secondaryAuth = getAuth(secondaryApp);
+
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+
+      await updateProfile(cred.user, {
+        displayName: `${firstName.trim()} ${lastName.trim()}`,
+      });
+
+      const adminData = {
+        uid:        cred.user.uid,
+        firstName:  firstName.trim(),
+        lastName:   lastName.trim(),
+        fullName:   `${firstName.trim()} ${lastName.trim()}`,
+        email:      email.trim().toLowerCase(),
+        phone:      '',
+        role:       'admin',
+        createdAt:  serverTimestamp(),
+        updatedAt:  serverTimestamp(),
+        status:     'active',
+        accessStatus: 'active',
+        requestedAt: null,
+        approvedAt:  null,
+        approvedBy:  '',
+        approvedByName: '',
+      };
+
+      await setDoc(doc(db, 'users', cred.user.uid), adminData);
+      await signOut(secondaryAuth);
+
+      setCreateSuccess(`Admin account for ${email} created successfully!`);
+      setNewAdmin({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '' });
+      notify && notify(`Admin account created for ${email}.`, 'success', 'Create Admin');
+    } catch (err) {
+      console.error(err);
+      if (err.code === 'auth/email-already-in-use') {
+        setCreateError('An account with this email already exists.');
+        notify && notify('An account with this email already exists.', 'error', 'Create Admin');
+      } else {
+        setCreateError(err.message || 'Failed to create admin account.');
+        notify && notify(err.message || 'Failed to create admin account.', 'error', 'Create Admin');
+      }
+    } finally {
+      setCreateLoading(false);
+      if (secondaryApp) {
+        try {
+          await deleteApp(secondaryApp);
+        } catch (e) {
+          console.error("Failed to delete secondary app:", e);
+        }
+      }
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setChangeError('');
+    setChangeSuccess('');
+
+    const { newPassword, confirmPassword } = passwords;
+
+    if (!newPassword || !confirmPassword) {
+      setChangeError('Both password fields are required.');
+      return;
+    }
+    if (!isStrongAdminPassword(newPassword)) {
+      setChangeError('Password must be at least 12 characters and include uppercase, lowercase, number, and special character.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setChangeError('Passwords do not match.');
+      return;
+    }
+
+    setChangeLoading(true);
+    try {
+      if (!auth.currentUser) {
+        throw new Error("No user is currently authenticated.");
+      }
+      await updatePassword(auth.currentUser, newPassword);
+      setChangeSuccess('Password updated successfully!');
+      setPasswords({ newPassword: '', confirmPassword: '' });
+      notify && notify('Admin password changed successfully.', 'success', 'Change Password');
+    } catch (err) {
+      console.error(err);
+      if (err.code === 'auth/requires-recent-login') {
+        setChangeError('For security reasons, please log out and log back in to change your password.');
+        notify && notify('Re-login required to change password. Please sign out and back in.', 'warn', 'Change Password');
+      } else {
+        setChangeError(err.message || 'Failed to update password.');
+        notify && notify(err.message || 'Failed to update password.', 'error', 'Change Password');
+      }
+    } finally {
+      setChangeLoading(false);
+    }
+  };
 
   return (
     <div>
@@ -1344,6 +1788,98 @@ function Settings({ records, thresholds, setThresholds, adminPortalCode, setAdmi
             Reset Admin Code
           </button>
         </div>
+      </div>
+
+      <div className="ap-settings-section">
+        <div className="ap-settings-title">Create New Admin Account</div>
+        <div className="ap-settings-sub">Register a new administrator account. The new admin will be saved to Firestore and Firebase Auth.</div>
+        
+        {createError && <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{createError}</div>}
+        {createSuccess && <div style={{ color: 'var(--green)', fontSize: 13, marginBottom: 12 }}>{createSuccess}</div>}
+        
+        <form onSubmit={handleCreateAdmin}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+            <input
+              className="ap-settings-input"
+              style={{ minWidth: 'auto', width: '100%' }}
+              type="text"
+              placeholder="First Name"
+              value={newAdmin.firstName}
+              onChange={e => setNewAdmin(p => ({ ...p, firstName: e.target.value }))}
+            />
+            <input
+              className="ap-settings-input"
+              style={{ minWidth: 'auto', width: '100%' }}
+              type="text"
+              placeholder="Last Name"
+              value={newAdmin.lastName}
+              onChange={e => setNewAdmin(p => ({ ...p, lastName: e.target.value }))}
+            />
+          </div>
+          <div style={{ marginBottom: '12px' }}>
+            <input
+              className="ap-settings-input"
+              style={{ minWidth: 'auto', width: '100%' }}
+              type="email"
+              placeholder="Email Address"
+              value={newAdmin.email}
+              onChange={e => setNewAdmin(p => ({ ...p, email: e.target.value }))}
+            />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            <input
+              className="ap-settings-input"
+              style={{ minWidth: 'auto', width: '100%' }}
+              type="password"
+              placeholder="Password (12+ chars)"
+              value={newAdmin.password}
+              onChange={e => setNewAdmin(p => ({ ...p, password: e.target.value }))}
+            />
+            <input
+              className="ap-settings-input"
+              style={{ minWidth: 'auto', width: '100%' }}
+              type="password"
+              placeholder="Confirm Password"
+              value={newAdmin.confirmPassword}
+              onChange={e => setNewAdmin(p => ({ ...p, confirmPassword: e.target.value }))}
+            />
+          </div>
+          <button className="ap-settings-apply" type="submit" disabled={createLoading}>
+            {createLoading ? "Creating..." : "Create Admin Account"}
+          </button>
+        </form>
+      </div>
+
+      <div className="ap-settings-section">
+        <div className="ap-settings-title">Change Admin Password</div>
+        <div className="ap-settings-sub">Change the password of the currently logged-in administrator account.</div>
+        
+        {changeError && <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{changeError}</div>}
+        {changeSuccess && <div style={{ color: 'var(--green)', fontSize: 13, marginBottom: 12 }}>{changeSuccess}</div>}
+        
+        <form onSubmit={handleChangePassword}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+            <input
+              className="ap-settings-input"
+              style={{ minWidth: 'auto', width: '100%' }}
+              type="password"
+              placeholder="New Password (12+ chars)"
+              value={passwords.newPassword}
+              onChange={e => setPasswords(p => ({ ...p, newPassword: e.target.value }))}
+            />
+            <input
+              className="ap-settings-input"
+              style={{ minWidth: 'auto', width: '100%' }}
+              type="password"
+              placeholder="Confirm New Password"
+              value={passwords.confirmPassword}
+              onChange={e => setPasswords(p => ({ ...p, confirmPassword: e.target.value }))}
+            />
+          </div>
+          <button className="ap-settings-apply" type="submit" disabled={changeLoading}>
+            {changeLoading ? "Updating..." : "Update Password"}
+          </button>
+        </form>
       </div>
       <div className="ap-settings-section">
         <div className="ap-settings-title">Efficiency Thresholds</div>
@@ -1640,7 +2176,7 @@ function CrudEntityModal({ title, fields, initialData, onClose, onSave }) {
   );
 }
 
-function CrudPanel({ title, collectionName, fields, search, primaryKey, description }) {
+function CrudPanel({ title, collectionName, fields, search, primaryKey, description, notify }) {
   const [items, setItems] = useState([]);
   const [busy, setBusy] = useState(true);
   const [modal, setModal] = useState(null);
@@ -1654,13 +2190,34 @@ function CrudPanel({ title, collectionName, fields, search, primaryKey, descript
   const insights = buildCrudInsights(collectionName, filtered);
 
   const saveRecord = async (payload) => {
-    const cleanPayload = Object.fromEntries(Object.entries(payload).map(([key, value]) => [key, typeof value === "string" ? value.trim() : value]));
-    if (modal?.id) { await updateDoc(doc(db, collectionName, modal.id), { ...cleanPayload, updatedAt: serverTimestamp() }); }
-    else { await addDoc(collection(db, collectionName), { ...cleanPayload, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }); }
-    setModal(null);
+    try {
+      const cleanPayload = Object.fromEntries(Object.entries(payload).map(([key, value]) => [key, typeof value === "string" ? value.trim() : value]));
+      if (modal?.id) {
+        await updateDoc(doc(db, collectionName, modal.id), { ...cleanPayload, updatedAt: serverTimestamp() });
+        notify && notify(`${primaryKey} updated successfully.`, 'success', title);
+      }
+      else {
+        await addDoc(collection(db, collectionName), { ...cleanPayload, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        notify && notify(`New ${primaryKey.toLowerCase()} added successfully.`, 'success', title);
+      }
+      setModal(null);
+    } catch (err) {
+      console.error(err);
+      notify && notify(`Failed to save ${primaryKey.toLowerCase()}: ${err.message}`, 'error', title);
+    }
   };
 
-  const removeRecord = async (id) => { await deleteDoc(doc(db, collectionName, id)); };
+  const removeRecord = async (id) => {
+    if (window.confirm(`Are you sure you want to delete this ${primaryKey.toLowerCase()}?`)) {
+      try {
+        await deleteDoc(doc(db, collectionName, id));
+        notify && notify(`${primaryKey} deleted successfully.`, 'warn', title);
+      } catch (err) {
+        console.error(err);
+        notify && notify(`Failed to delete ${primaryKey.toLowerCase()}: ${err.message}`, 'error', title);
+      }
+    }
+  };
 
   return (
     <>
@@ -1754,7 +2311,7 @@ function CrudPanel({ title, collectionName, fields, search, primaryKey, descript
    badge for accounts that signed in via Google, and hides password-reset
    actions for Google-only users.
 ─────────────────────────────────────────────────────────────────────────── */
-function UsersCustomerPanel({ search }) {
+function UsersCustomerPanel({ search, notify }) {
   const [users, setUsers] = useState([]);
   const [busy, setBusy] = useState(true);
   const [editModal, setEditModal] = useState(null);
@@ -1824,10 +2381,42 @@ function UsersCustomerPanel({ search }) {
         updatedAt: serverTimestamp(),
       });
       setEditModal(null);
+      notify && notify(`Customer "${editForm.fullName}" updated successfully.`, 'success', 'Customer Details');
     } catch (err) {
       console.error('Failed to update user:', err);
       setEditError('Save failed. Please try again.');
+      notify && notify('Failed to update customer. Please try again.', 'error', 'Customer Details');
     } finally { setSaving(false); }
+  };
+
+  const confirmDelete = async (uid, name) => {
+    if (window.confirm(`Are you sure you want to delete customer "${name}"? This action cannot be undone.`)) {
+      try {
+        await deleteDoc(doc(db, 'users', uid));
+        notify && notify(`Customer "${name}" deleted.`, 'warn', 'Customer Details');
+      } catch (err) {
+        console.error('Failed to delete customer:', err);
+        notify && notify('Failed to delete customer. Please try again.', 'error', 'Customer Details');
+      }
+    }
+  };
+
+  const handleDeleteCustomer = async () => {
+    if (!editModal) return;
+    const name = getName(editModal);
+    if (window.confirm(`Are you sure you want to delete customer "${name}"? This action cannot be undone.`)) {
+      setSaving(true);
+      try {
+        await deleteDoc(doc(db, 'users', editModal.uid));
+        setEditModal(null);
+      } catch (err) {
+        console.error('Failed to delete customer:', err);
+        setEditError('Failed to delete customer. Please try again.');
+        notify && notify('Failed to delete customer. Please try again.', 'error', 'Customer Details');
+      } finally {
+        setSaving(false);
+      }
+    }
   };
 
   const GoogleBadge = () => (
@@ -1968,6 +2557,10 @@ function UsersCustomerPanel({ search }) {
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                       Edit
                     </button>
+                    <button className="ap-action-btn del" onClick={() => confirmDelete(u.uid, getName(u))}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -2014,9 +2607,336 @@ function UsersCustomerPanel({ search }) {
               <label className="ap-form-label">Status</label>
               <input className="ap-form-input" value={editForm.status} onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))} placeholder="active" />
             </div>
-            <button className="ap-submit-btn" onClick={saveEdit} disabled={saving}>
-              {saving ? 'Saving…' : 'Update Customer'}
-            </button>
+            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+              <button
+                type="button"
+                className="ap-submit-btn"
+                onClick={handleDeleteCustomer}
+                style={{
+                  background: 'linear-gradient(135deg, var(--red), #dc2626)',
+                  boxShadow: '0 4px 12px rgba(239,68,68,0.2)',
+                  flex: 1,
+                  marginTop: 8
+                }}
+                disabled={saving}
+              >
+                Delete Customer
+              </button>
+              <button
+                type="button"
+                className="ap-submit-btn"
+                onClick={saveEdit}
+                style={{ flex: 2 }}
+                disabled={saving}
+              >
+                {saving ? 'Saving…' : 'Update Customer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ─── Admins Panel ─────────────────────────────────────────────────────────
+   Reads from the `users` collection (role === "admin"), displays a list of
+   admins, and allows authorized admins (verifying via adminPortalCode) to 
+   edit or delete them.
+─────────────────────────────────────────────────────────────────────────── */
+function AdminsPanel({ search, adminPortalCode, notify }) {
+  const [admins, setAdmins] = useState([]);
+  const [busy, setBusy] = useState(true);
+  const [editModal, setEditModal] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, 'users'),
+      (snap) => {
+        const adminAccounts = snap.docs
+          .map((d) => ({ uid: d.id, ...d.data() }))
+          .filter((u) => String(u.role || '').toLowerCase() === 'admin')
+          .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+        setAdmins(adminAccounts);
+        setBusy(false);
+      },
+      (err) => { console.error('AdminsPanel load error:', err); setAdmins([]); setBusy(false); }
+    );
+    return unsub;
+  }, []);
+
+  const term = (search || '').trim().toLowerCase();
+  const filtered = admins.filter((u) =>
+    !term ||
+    [u.fullName, u.firstName, u.lastName, u.email, u.phone, u.status]
+      .filter(Boolean).some((v) => String(v).toLowerCase().includes(term))
+  );
+
+  const activeCount = admins.filter((u) => String(u.status || '').toLowerCase() === 'active').length;
+
+  const fmtDate = (value) => {
+    if (!value) return '—';
+    const d = value?.toDate ? value.toDate() : new Date(value);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getName = (u) =>
+    u.fullName ||
+    [u.firstName, u.lastName].filter(Boolean).join(' ').trim() ||
+    u.email ||
+    '—';
+
+  const openEdit = (u) => {
+    setEditForm({
+      fullName: u.fullName || [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || '',
+      email:    u.email   || '',
+      phone:    u.phone   || '',
+      status:   u.status  || 'active',
+    });
+    setEditModal(u);
+    setEditError('');
+  };
+
+  const saveEdit = async () => {
+    if (!editForm.fullName?.trim()) { setEditError('Full name is required.'); return; }
+    
+    const securityCode = prompt(`To save changes to admin account "${editModal.fullName || editModal.email}", please enter the Admin Security Code to authorize:`);
+    if (securityCode === null) return;
+    if (securityCode.trim() !== adminPortalCode) {
+      alert("Unauthorized! Incorrect Admin Security Code.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'users', editModal.uid), {
+        fullName:  editForm.fullName.trim(),
+        phone:     editForm.phone.trim(),
+        status:    editForm.status.trim(),
+        updatedAt: serverTimestamp(),
+      });
+      setEditModal(null);
+      notify && notify(`Admin details updated for "${editForm.fullName}".`, 'success', 'Admin Accounts');
+    } catch (err) {
+      console.error('Failed to update admin:', err);
+      setEditError('Save failed. Please try again.');
+      notify && notify(`Failed to update admin: ${err.message}`, 'error', 'Admin Accounts');
+    } finally { setSaving(false); }
+  };
+
+  const handleDeleteAdmin = async () => {
+    if (!editModal) return;
+    if (editModal.uid === auth.currentUser?.uid) {
+      alert("For security reasons, you cannot delete your own admin account.");
+      return;
+    }
+
+    const name = getName(editModal);
+    
+    const securityCode = prompt(`To delete admin account "${name}", please enter the Admin Security Code to authorize:`);
+    if (securityCode === null) return;
+    if (securityCode.trim() !== adminPortalCode) {
+      alert("Unauthorized! Incorrect Admin Security Code.");
+      return;
+    }
+
+    if (window.confirm(`Are you sure you want to delete admin account "${name}"? This action cannot be undone.`)) {
+      setSaving(true);
+      try {
+        await deleteDoc(doc(db, 'users', editModal.uid));
+        setEditModal(null);
+        notify && notify(`Admin account "${name}" deleted.`, 'warn', 'Admin Accounts');
+      } catch (err) {
+        console.error('Failed to delete admin:', err);
+        setEditError('Failed to delete admin account. Please try again.');
+        notify && notify(`Failed to delete admin: ${err.message}`, 'error', 'Admin Accounts');
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
+  const confirmDelete = async (uid, name) => {
+    if (uid === auth.currentUser?.uid) {
+      alert("For security reasons, you cannot delete your own admin account.");
+      return;
+    }
+
+    const securityCode = prompt(`To delete admin account "${name}", please enter the Admin Security Code to authorize:`);
+    if (securityCode === null) return;
+    if (securityCode.trim() !== adminPortalCode) {
+      alert("Unauthorized! Incorrect Admin Security Code.");
+      return;
+    }
+
+    if (window.confirm(`Are you sure you want to delete admin account "${name}"? This action cannot be undone.`)) {
+      try {
+        await deleteDoc(doc(db, 'users', uid));
+        notify && notify(`Admin account "${name}" deleted.`, 'warn', 'Admin Accounts');
+      } catch (err) {
+        console.error('Failed to delete admin:', err);
+        alert('Failed to delete admin account. Please try again.');
+        notify && notify(`Failed to delete admin: ${err.message}`, 'error', 'Admin Accounts');
+      }
+    }
+  };
+
+  return (
+    <>
+      {/* Stats row */}
+      <div className="ap-grid-2">
+        <div className="ap-stat-card blue">
+          <div className="ap-stat-icon blue">⚙️</div>
+          <div className="ap-stat-label">Total Administrators</div>
+          <div className="ap-stat-value">{admins.length}</div>
+          <div className="ap-stat-sub">Registered admin accounts</div>
+        </div>
+        <div className="ap-stat-card green">
+          <div className="ap-stat-icon green">✓</div>
+          <div className="ap-stat-label">Active Administrators</div>
+          <div className="ap-stat-value" style={{ color: 'var(--green)' }}>{activeCount}</div>
+          <div className="ap-stat-sub">Active admin accounts</div>
+        </div>
+      </div>
+
+      {/* Security notice banner */}
+      <div className="ap-panel" style={{ marginBottom: 16, display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 20px' }}>
+        <div style={{ width: 34, height: 34, borderRadius: 8, background: 'rgba(239,68,68,0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 3 }}>Administrator Accounts — Security Protection</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
+            Modifying or deleting administrative accounts is highly sensitive. Editing or deleting any admin account requires entering the current <strong style={{ color: 'var(--text)' }}>Admin Security Code</strong>.
+            For safety, you <strong style={{ color: 'var(--red)' }}>cannot delete your own</strong> active administrator account.
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="ap-panel">
+        <div className="ap-panel-title">
+          Administrator Accounts
+          <span className="ap-panel-sub">{filtered.length} {filtered.length === 1 ? 'admin' : 'admins'} · newest first</span>
+        </div>
+        <div className="ap-table-wrap">
+          <table className="ap-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Status</th>
+                <th>Joined</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {busy && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>Loading...</td></tr>}
+              {!busy && filtered.length === 0 && (
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 36, color: 'var(--muted)' }}>
+                  {admins.length === 0
+                    ? 'No administrator accounts found.'
+                    : 'No administrators match your search.'}
+                </td></tr>
+              )}
+              {!busy && filtered.map((u) => (
+                <tr key={u.uid} className="data-row">
+                  <td style={{ fontWeight: 600 }}>
+                    {getName(u)}
+                    {u.uid === auth.currentUser?.uid && (
+                      <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 5px', borderRadius: 4, background: 'rgba(59,130,246,0.15)', color: 'var(--accent)', fontWeight: 'bold' }}>You</span>
+                    )}
+                  </td>
+                  <td style={{ fontSize: 12, color: 'var(--text-dim)' }}>{u.email || '—'}</td>
+                  <td style={{ fontSize: 12, color: 'var(--text-dim)' }}>{u.phone || '—'}</td>
+                  <td>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, display: 'inline-block',
+                      background: String(u.status || '').toLowerCase() === 'active' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                      color: String(u.status || '').toLowerCase() === 'active' ? 'var(--green)' : 'var(--red)',
+                      border: String(u.status || '').toLowerCase() === 'active' ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)',
+                    }}>
+                      {u.status || 'active'}
+                    </span>
+                  </td>
+                  <td style={{ fontSize: 12, color: 'var(--text-dim)' }}>{fmtDate(u.createdAt)}</td>
+                  <td>
+                    <button className="ap-action-btn" onClick={() => openEdit(u)}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      Edit
+                    </button>
+                    {u.uid !== auth.currentUser?.uid && (
+                      <button className="ap-action-btn del" onClick={() => confirmDelete(u.uid, getName(u))}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                        Delete
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Edit modal */}
+      {editModal && (
+        <div className="ap-modal-overlay" onClick={() => setEditModal(null)}>
+          <div className="ap-modal" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+            <div className="ap-modal-header">
+              <div className="ap-modal-title">Edit Administrator</div>
+              <button className="ap-modal-close" onClick={() => setEditModal(null)}>×</button>
+            </div>
+            {editError && <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{editError}</div>}
+
+            <div className="ap-form-group">
+              <label className="ap-form-label">Full Name</label>
+              <input className="ap-form-input" value={editForm.fullName} onChange={(e) => setEditForm((p) => ({ ...p, fullName: e.target.value }))} placeholder="Kasun Perera" />
+            </div>
+            <div className="ap-form-group">
+              <label className="ap-form-label">Email</label>
+              <input className="ap-form-input" value={editForm.email} readOnly style={{ opacity: 0.5, cursor: 'not-allowed' }} />
+            </div>
+            <div className="ap-form-group">
+              <label className="ap-form-label">Phone</label>
+              <input className="ap-form-input" value={editForm.phone} onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))} placeholder="077 123 4567" />
+            </div>
+            <div className="ap-form-group">
+              <label className="ap-form-label">Status</label>
+              <input className="ap-form-input" value={editForm.status} onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))} placeholder="active" />
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+              {editModal.uid !== auth.currentUser?.uid && (
+                <button
+                  type="button"
+                  className="ap-submit-btn"
+                  onClick={handleDeleteAdmin}
+                  style={{
+                    background: 'linear-gradient(135deg, var(--red), #dc2626)',
+                    boxShadow: '0 4px 12px rgba(239,68,68,0.2)',
+                    flex: 1,
+                    marginTop: 8
+                  }}
+                  disabled={saving}
+                >
+                  Delete Admin
+                </button>
+              )}
+              <button
+                type="button"
+                className="ap-submit-btn"
+                onClick={saveEdit}
+                style={{ flex: editModal.uid === auth.currentUser?.uid ? 1 : 2 }}
+                disabled={saving}
+              >
+                {saving ? 'Saving…' : 'Update Admin'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2083,7 +3003,7 @@ function exportCommercePdf(orders, cartItems) {
 }
 
 /* ─── COMMERCE PANEL (UPDATED) ─────────────────────────────── */
-function CommercePanel({ search }) {
+function CommercePanel({ search, notify }) {
   const [orders, setOrders] = useState([]);
   const [cartItems, setCartItems] = useState([]);
   const [busy, setBusy] = useState(true);
@@ -2121,11 +3041,25 @@ function CommercePanel({ search }) {
   };
 
   const updateOrderStatus = async (id, status) => {
-    await updateDoc(doc(db, 'orders', id), { status });
+    try {
+      await updateDoc(doc(db, 'orders', id), { status });
+      notify && notify(`Order #${id.substring(0, 6)}... status updated to "${status}".`, 'success', 'Cart & Orders');
+    } catch (err) {
+      console.error(err);
+      notify && notify(`Failed to update order: ${err.message}`, 'error', 'Cart & Orders');
+    }
   };
 
   const deleteOrder = async (id) => {
-    await deleteDoc(doc(db, 'orders', id));
+    if (window.confirm(`Are you sure you want to delete order #${id}?`)) {
+      try {
+        await deleteDoc(doc(db, 'orders', id));
+        notify && notify(`Order #${id.substring(0, 6)}... deleted.`, 'warn', 'Cart & Orders');
+      } catch (err) {
+        console.error(err);
+        notify && notify(`Failed to delete order: ${err.message}`, 'error', 'Cart & Orders');
+      }
+    }
   };
 
   const STATUS_FILTERS = ['all', 'pending', 'approved', 'delivered', 'cancelled'];
@@ -2375,7 +3309,7 @@ function exportTradeInPdf(items) {
   doc.save("mobile_trade_in_report.pdf");
 }
 
-function TradeInPanel({ search }) {
+function TradeInPanel({ search, notify }) {
   const [items, setItems] = useState([]);
   const [busy, setBusy] = useState(true);
   const [viewItem, setViewItem] = useState(null);
@@ -2389,14 +3323,28 @@ function TradeInPanel({ search }) {
   const handleUpdateTrade = async (id, data) => {
     try {
       await updateDoc(doc(db, "tradeIns", id), { customerName: data.customerName || "", phone: data.phone || "", brand: data.brand || "", model: data.model || "", imei: data.imei || "", storage: data.storage || "", estimatedValue: Number(data.estimatedValue) || 0, status: data.status || "Pending", notes: data.notes || "", updatedAt: serverTimestamp() });
-      setEditItem(null); alert("Mobile trade-in updated successfully.");
-    } catch (error) { console.error("Update failed:", error); alert("Failed to update mobile trade-in."); }
+      setEditItem(null);
+      alert("Mobile trade-in updated successfully.");
+      notify && notify(`Trade-in request updated for "${data.customerName}".`, 'success', 'Mobile Trade-In');
+    } catch (error) {
+      console.error("Update failed:", error);
+      alert("Failed to update mobile trade-in.");
+      notify && notify(`Failed to update trade-in: ${error.message}`, 'error', 'Mobile Trade-In');
+    }
   };
 
   const handleDeleteTrade = async (id) => {
     if (!window.confirm("Are you sure you want to delete this mobile trade-in request?")) return;
-    try { await deleteDoc(doc(db, "tradeIns", id)); alert("Mobile trade-in deleted successfully."); }
-    catch (error) { console.error("Delete failed:", error); alert("Failed to delete mobile trade-in."); }
+    try {
+      await deleteDoc(doc(db, "tradeIns", id));
+      alert("Mobile trade-in deleted successfully.");
+      notify && notify(`Trade-in request deleted.`, 'warn', 'Mobile Trade-In');
+    }
+    catch (error) {
+      console.error("Delete failed:", error);
+      alert("Failed to delete mobile trade-in.");
+      notify && notify(`Failed to delete trade-in: ${error.message}`, 'error', 'Mobile Trade-In');
+    }
   };
 
   const filtered = items.filter((item) => JSON.stringify(item).toLowerCase().includes((search || "").toLowerCase()));
@@ -2528,6 +3476,55 @@ function EmployeeAccessPanel({ requests, search, onUpdateStatus, savingId }) {
   const pendingCount = requests.filter((i) => i.accessStatus === "pending").length;
   const approvedCount = requests.filter((i) => i.accessStatus === "approved").length;
   const rejectedCount = requests.filter((i) => i.accessStatus === "rejected").length;
+
+  const [editModal, setEditModal] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  const openEdit = (emp) => {
+    setEditForm({
+      fullName: emp.fullName || `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || '',
+      email:    emp.email || '',
+      phone:    emp.phone || '',
+      employeeSecurityCode: emp.employeeSecurityCode || '',
+    });
+    setEditModal(emp);
+    setEditError('');
+  };
+
+  const confirmDelete = async (uid, name) => {
+    if (window.confirm(`Are you sure you want to delete employee "${name}"? This action cannot be undone.`)) {
+      try {
+        await deleteDoc(doc(db, 'users', uid));
+      } catch (err) {
+        console.error('Failed to delete employee:', err);
+        alert('Failed to delete employee. Please try again.');
+      }
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editForm.fullName?.trim()) { setEditError('Full name is required.'); return; }
+    setSaving(true);
+    setEditError('');
+    try {
+      await updateDoc(doc(db, 'users', editModal.uid), {
+        fullName:             editForm.fullName.trim(),
+        email:                editForm.email.trim(),
+        phone:                editForm.phone.trim(),
+        employeeSecurityCode: editForm.employeeSecurityCode.trim(),
+        updatedAt:            serverTimestamp(),
+      });
+      setEditModal(null);
+    } catch (err) {
+      console.error('Failed to update employee:', err);
+      setEditError('Failed to update employee. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <>
       <div className="ap-grid-4">
@@ -2557,10 +3554,12 @@ function EmployeeAccessPanel({ requests, search, onUpdateStatus, savingId }) {
                   <div className="ap-request-meta-card"><span>Approved By</span><strong>{item.approvedByName || item.approvedBy || "-"}</strong></div>
                   <div className="ap-request-meta-card"><span>Approved At</span><strong>{formatRequestDate(item.approvedAt)}</strong></div>
                 </div>
-                <div className="ap-request-actions">
+                <div className="ap-request-actions" style={{ flexWrap: 'wrap', gap: 6 }}>
                   <button className="ap-request-btn approve" onClick={() => onUpdateStatus(item.uid, "approved")} disabled={savingId === item.uid}>Approve Access</button>
                   <button className="ap-request-btn reject" onClick={() => onUpdateStatus(item.uid, "rejected")} disabled={savingId === item.uid}>Reject Request</button>
                   <button className="ap-request-btn pending" onClick={() => onUpdateStatus(item.uid, "pending")} disabled={savingId === item.uid}>Mark Pending</button>
+                  <button className="ap-request-btn" style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--accent)' }} onClick={() => openEdit(item)}>Edit Account</button>
+                  <button className="ap-request-btn reject" onClick={() => confirmDelete(item.uid, item.fullName || item.email)}>Remove Account</button>
                 </div>
                 {item.employeeSecurityCode && (
                   <div className="ap-request-code"><span>Employee Security Code</span><strong>{item.employeeSecurityCode}</strong></div>
@@ -2570,6 +3569,64 @@ function EmployeeAccessPanel({ requests, search, onUpdateStatus, savingId }) {
           </div>
         )}
       </div>
+
+      {/* Edit modal */}
+      {editModal && (
+        <div className="ap-modal-overlay" onClick={() => setEditModal(null)}>
+          <div className="ap-modal" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+            <div className="ap-modal-header">
+              <div className="ap-modal-title">Edit Employee Account</div>
+              <button className="ap-modal-close" onClick={() => setEditModal(null)}>×</button>
+            </div>
+            {editError && <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12 }}>{editError}</div>}
+
+            <div className="ap-form-group">
+              <label className="ap-form-label">Full Name</label>
+              <input className="ap-form-input" value={editForm.fullName} onChange={(e) => setEditForm((p) => ({ ...p, fullName: e.target.value }))} placeholder="John Doe" />
+            </div>
+            <div className="ap-form-group">
+              <label className="ap-form-label">Email</label>
+              <input className="ap-form-input" value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))} placeholder="employee@iconx.lk" />
+            </div>
+            <div className="ap-form-group">
+              <label className="ap-form-label">Phone</label>
+              <input className="ap-form-input" value={editForm.phone} onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))} placeholder="077 123 4567" />
+            </div>
+            <div className="ap-form-group">
+              <label className="ap-form-label">Staff Security Code</label>
+              <input className="ap-form-input" value={editForm.employeeSecurityCode} onChange={(e) => setEditForm((p) => ({ ...p, employeeSecurityCode: e.target.value }))} placeholder="EMP-XXXX" />
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+              <button
+                type="button"
+                className="ap-submit-btn"
+                onClick={() => {
+                  setEditModal(null);
+                  confirmDelete(editModal.uid, editForm.fullName || editForm.email);
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, var(--red), #dc2626)',
+                  boxShadow: '0 4px 12px rgba(239,68,68,0.2)',
+                  flex: 1,
+                  marginTop: 8
+                }}
+                disabled={saving}
+              >
+                Delete Account
+              </button>
+              <button
+                type="button"
+                className="ap-submit-btn"
+                onClick={handleSaveEdit}
+                style={{ flex: 2 }}
+                disabled={saving}
+              >
+                {saving ? 'Saving…' : 'Update Account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -2652,6 +3709,27 @@ function PasswordResetsPanel({ resets, search, onAdminSend, onResolve }) {
   );
 }
 
+/* ─── TOAST NOTIFICATION COMPONENT ────────────────────────── */
+const TOAST_ICONS = { success: '✓', error: '✕', info: 'ℹ', warn: '⚠' };
+
+function ToastContainer({ toasts, onDismiss }) {
+  return (
+    <div className="ap-toast-container">
+      {toasts.map(t => (
+        <div key={t.id} className={`ap-toast ${t.type}${t.leaving ? ' leaving' : ''}`}>
+          <div className="ap-toast-icon">{TOAST_ICONS[t.type] || 'ℹ'}</div>
+          <div className="ap-toast-body">
+            {t.section && <div className="ap-toast-section">{t.section}</div>}
+            <div className="ap-toast-msg">{t.message}</div>
+          </div>
+          <button className="ap-toast-close" onClick={() => onDismiss(t.id)}>×</button>
+          <div className="ap-toast-progress" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AdminPanel() {
   const navigate = useNavigate();
   const [tab, setTab] = useState('dashboard');
@@ -2667,6 +3745,70 @@ export default function AdminPanel() {
   const [adminPortalCode, setAdminPortalCode] = useState(DEFAULT_ADMIN_PORTAL_CODE);
   const [portalCodeSaving, setPortalCodeSaving] = useState(false);
   const [passwordResets, setPasswordResets] = useState([]);
+  const [toasts, setToasts] = useState([]);
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const stored = localStorage.getItem('iconx_admin_notifications');
+      return stored ? JSON.parse(stored) : [];
+    } catch (_) {
+      return [];
+    }
+  });
+  const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
+  const notificationRef = useRef(null);
+
+  const getRelativeTime = (timestamp) => {
+    const diffMs = Date.now() - timestamp;
+    if (diffMs < 5000) return 'Just now';
+    const diffSecs = Math.floor(diffMs / 1000);
+    if (diffSecs < 60) return `${diffSecs}s ago`;
+    const diffMins = Math.floor(diffSecs / 60);
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  };
+
+  const notify = useCallback((message, type = 'info', section = '') => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, message, type, section, leaving: false }]);
+
+    setNotifications(prev => [
+      {
+        id,
+        message,
+        type,
+        section,
+        timestamp: Date.now(),
+        read: false
+      },
+      ...prev
+    ].slice(0, 100));
+
+    setTimeout(() => {
+      setToasts(prev => prev.map(t => t.id === id ? { ...t, leaving: true } : t));
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 300);
+    }, 4000);
+  }, []);
+
+  const dismissToast = useCallback((id) => {
+    setToasts(prev => prev.map(t => t.id === id ? { ...t, leaving: true } : t));
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 300);
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setIsNotificationPanelOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   const injected = useRef(false);
 
   const liveRecords = records.map(r => ({ ...r, status: getStatus(r.efficiency, thresholds) }));
@@ -2680,6 +3822,10 @@ export default function AdminPanel() {
   }, []);
 
   useEffect(() => { localStorage.setItem('iconx_admin_theme', theme); }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('iconx_admin_notifications', JSON.stringify(notifications));
+  }, [notifications]);
 
   useEffect(() => {
     setLoading(true);
@@ -2716,12 +3862,24 @@ export default function AdminPanel() {
     try {
       // Security check: do NOT send password reset to Google-only accounts.
       // Doing so would let anyone who knows the email hijack the account.
-      let methods = [];
-      try { methods = await fetchSignInMethodsForEmail(auth, email); } catch (_) {}
-      if (methods.length > 0 && !methods.includes('password') && methods.includes('google.com')) {
+      //
+      // NOTE: this previously called fetchSignInMethodsForEmail, but Google
+      // disabled that API for all Firebase projects created after 15 Sep
+      // 2023 (email enumeration protection, on by default) — it now always
+      // returns an empty array, so this Google-account check could never
+      // actually trigger. We look up the provider from the `users`
+      // collection in Firestore instead, since that field is already
+      // recorded there for every account.
+      let isGoogleAccount = false;
+      try {
+        const snap = await getDocs(query(collection(db, 'users'), where('email', '==', email)));
+        isGoogleAccount = snap.docs[0]?.data()?.provider === 'google';
+      } catch (_) {}
+      if (isGoogleAccount) {
         alert(
           `⚠️ Security Block\n\nThis email (${email}) belongs to a Google Sign-In account.\n\nPassword reset emails cannot be sent to Google accounts — the account has no password to reset. The customer must always sign in using the "Continue with Google" button.`
         );
+        notify && notify(`Security Block: Password reset blocked for Google account (${email}).`, 'warn', 'Password Resets');
         // Log the blocked attempt
         try {
           await updateDoc(doc(db, 'passwordResets', resetId), {
@@ -2733,14 +3891,28 @@ export default function AdminPanel() {
         } catch (_) {}
         return;
       }
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, email, {
+        url: `${window.location.origin}/reset-password`,
+        handleCodeInApp: true,
+      });
       await updateDoc(doc(db, 'passwordResets', resetId), { status: 'admin_sent', adminSentAt: serverTimestamp(), adminSentBy: auth.currentUser?.email || 'Admin' });
-    } catch (err) { console.error('Admin reset send failed:', err); alert('Failed to send reset email. Check the address is valid in Firebase Auth.'); }
+      notify && notify(`Password reset email sent to ${email}.`, 'success', 'Password Resets');
+    } catch (err) {
+      console.error('Admin reset send failed:', err);
+      alert('Failed to send reset email. Check the address is valid in Firebase Auth.');
+      notify && notify(`Failed to send password reset to ${email}.`, 'error', 'Password Resets');
+    }
   };
 
   const markResetResolved = async (resetId) => {
-    try { await updateDoc(doc(db, 'passwordResets', resetId), { status: 'resolved', resolvedAt: serverTimestamp(), resolvedBy: auth.currentUser?.email || 'Admin' }); }
-    catch (err) { console.error('markResetResolved failed:', err); }
+    try {
+      await updateDoc(doc(db, 'passwordResets', resetId), { status: 'resolved', resolvedAt: serverTimestamp(), resolvedBy: auth.currentUser?.email || 'Admin' });
+      notify && notify('Password reset request marked as resolved.', 'success', 'Password Resets');
+    }
+    catch (err) {
+      console.error('markResetResolved failed:', err);
+      notify && notify(`Failed to resolve reset request: ${err.message}`, 'error', 'Password Resets');
+    }
   };
 
   const handleLogout = async () => {
@@ -2754,14 +3926,24 @@ export default function AdminPanel() {
       const target = employeeRequests.find((item) => item.uid === uid);
       const nextEmployeeSecurityCode = accessStatus === "approved" ? String(target?.employeeSecurityCode || generateEmployeePortalCode(target?.fullName || target?.email || uid)) : "";
       await updateDoc(doc(db, "users", uid), { accessStatus, status: accessStatus, approvedAt: accessStatus === "approved" ? serverTimestamp() : null, approvedBy: auth.currentUser?.uid || "", approvedByName: auth.currentUser?.displayName || auth.currentUser?.email || "Admin", employeeSecurityCode: nextEmployeeSecurityCode, updatedAt: serverTimestamp() });
-    } catch (error) { console.error("Failed to update employee access:", error); }
+      notify && notify(`Employee access updated to "${accessStatus}" for ${target?.fullName || target?.email || uid}.`, 'success', 'Employee Access');
+    } catch (error) {
+      console.error("Failed to update employee access:", error);
+      notify && notify(`Failed to update employee access: ${error.message}`, 'error', 'Employee Access');
+    }
     finally { setRequestSavingId(""); }
   };
 
   const saveAdminPortalCode = async (nextCode) => {
     setPortalCodeSaving(true);
-    try { await setDoc(doc(db, PORTAL_SETTINGS_COLLECTION, PORTAL_SETTINGS_DOC), { adminCode: String(nextCode || DEFAULT_ADMIN_PORTAL_CODE), updatedAt: serverTimestamp(), updatedBy: auth.currentUser?.uid || "", updatedByName: auth.currentUser?.displayName || auth.currentUser?.email || "Admin" }, { merge: true }); }
-    catch (error) { console.error("Failed to save admin portal code:", error); }
+    try {
+      await setDoc(doc(db, PORTAL_SETTINGS_COLLECTION, PORTAL_SETTINGS_DOC), { adminCode: String(nextCode || DEFAULT_ADMIN_PORTAL_CODE), updatedAt: serverTimestamp(), updatedBy: auth.currentUser?.uid || "", updatedByName: auth.currentUser?.displayName || auth.currentUser?.email || "Admin" }, { merge: true });
+      notify && notify('Admin Security Code saved successfully.', 'success', 'Settings');
+    }
+    catch (error) {
+      console.error("Failed to save admin portal code:", error);
+      notify && notify(`Failed to save admin portal code: ${error.message}`, 'error', 'Settings');
+    }
     finally { setPortalCodeSaving(false); }
   };
 
@@ -2771,6 +3953,7 @@ export default function AdminPanel() {
     { k: 'reviews', l: 'Customer Reviews' }, { k: 'orders', l: 'Cart & Orders' },
     { k: 'tradeIn', l: 'Mobile Trade-In' }, { k: 'attendance', l: 'Salary' },
     { k: 'employeePerformance', l: 'Employee Insights' }, { k: 'employeeAccess', l: 'Employee Access' },
+    { k: 'adminAccounts', l: 'Admin Accounts' },
     { k: 'settings', l: 'Settings' },
   ];
 
@@ -2817,6 +4000,54 @@ export default function AdminPanel() {
             <button className="ap-theme-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
               {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
             </button>
+            <div className="ap-notification-container" ref={notificationRef}>
+              <button className="ap-notification-btn" onClick={() => setIsNotificationPanelOpen(!isNotificationPanelOpen)} title="View notifications">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+                {notifications.filter(n => !n.read).length > 0 && (
+                  <span className="ap-notification-badge">{notifications.filter(n => !n.read).length}</span>
+                )}
+              </button>
+              {isNotificationPanelOpen && (
+                <div className="ap-notification-dropdown">
+                  <div className="ap-notification-header">
+                    <div className="ap-notification-title">Notifications</div>
+                    <div className="ap-notification-header-actions">
+                      {notifications.length > 0 && (
+                        <>
+                          <button className="ap-notification-header-btn" onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}>Mark all read</button>
+                          <button className="ap-notification-header-btn" style={{ color: 'var(--red)' }} onClick={() => setNotifications([])}>Clear all</button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="ap-notification-list">
+                    {notifications.length === 0 ? (
+                      <div className="ap-notification-empty">
+                        <div className="ap-notification-empty-icon">🔔</div>
+                        <div>No new notifications</div>
+                      </div>
+                    ) : (
+                      notifications.map(n => (
+                        <div key={n.id} className={`ap-notification-item ${n.type} ${!n.read ? 'unread' : ''}`} onClick={() => setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, read: true } : notif))}>
+                          {!n.read && <div className="ap-notification-item-unread-dot" />}
+                          <div className="ap-notification-item-icon">
+                            {n.type === 'success' ? '✓' : n.type === 'error' ? '✕' : n.type === 'warn' ? '⚠' : 'ℹ'}
+                          </div>
+                          <div className="ap-notification-item-content">
+                            {n.section && <div className="ap-notification-item-section">{n.section}</div>}
+                            <div className="ap-notification-item-message">{n.message}</div>
+                            <div className="ap-notification-item-time">{getRelativeTime(n.timestamp)}</div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             <input className="ap-search" placeholder={tab === 'employeePerformance' ? 'Search attendance or sales...' : tab === 'employeeAccess' ? 'Search employee requests...' : 'Search...'} value={search} onChange={e => setSearch(e.target.value)} />
             <div style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 12px' }}>
               {loading ? 'Loading...' : (tab === 'employeePerformance' ? employeeMetrics.length : tab === 'employeeAccess' ? employeeRequests.length : tab === 'passwordResets' ? passwordResets.length : records.length) + ' records'}
@@ -2839,18 +4070,20 @@ export default function AdminPanel() {
                   statusColor={statusColor} statusLabel={statusLabel} statusIcon={statusIcon}
                   fmt={fmt} calcEff={calcEff} getStatus={getStatus} Gauge={Gauge} Tip={Tip}
                   onExportPdf={() => exportPDF(liveRecords)} onExportCsv={() => exportExcel(liveRecords)}
+                  notify={notify}
                 />
               )}
               {tab === 'employeePerformance' && <EmployeeAnalyticsPanel records={employeeMetrics} search={search} />}
               {tab === 'employeeAccess' && <EmployeeAccessPanel requests={employeeRequests} search={search} onUpdateStatus={updateEmployeeAccess} savingId={requestSavingId} />}
-              {tab === 'settings' && <Settings records={liveRecords} thresholds={thresholds} setThresholds={setThresholds} adminPortalCode={adminPortalCode} setAdminPortalCode={setAdminPortalCode} onSaveAdminPortalCode={saveAdminPortalCode} portalCodeSaving={portalCodeSaving} />}
-              {tab === 'product' && <ProductAdmin />}
-              {tab === 'customer' && <UsersCustomerPanel search={search} />}
+              {tab === 'settings' && <Settings records={liveRecords} thresholds={thresholds} setThresholds={setThresholds} adminPortalCode={adminPortalCode} setAdminPortalCode={setAdminPortalCode} onSaveAdminPortalCode={saveAdminPortalCode} portalCodeSaving={portalCodeSaving} notify={notify} />}
+              {tab === 'product' && <ProductAdmin notify={notify} />}
+              {tab === 'customer' && <UsersCustomerPanel search={search} notify={notify} />}
+              {tab === 'adminAccounts' && <AdminsPanel search={search} adminPortalCode={adminPortalCode} notify={notify} />}
               {tab === 'passwordResets' && <PasswordResetsPanel resets={passwordResets} search={search} onAdminSend={adminSendPasswordReset} onResolve={markResetResolved} />}
-              {tab === 'reviews' && <CrudPanel title="Customer Reviews" collectionName="customerReviews" fields={REVIEW_FIELDS} primaryKey="Review" description="Messages submitted from the Contact Us page." search={search} />}
-              {tab === 'orders' && <CommercePanel search={search} />}
-              {tab === 'tradeIn' && <TradeInPanel search={search} />}
-              {!['dashboard','attendance','employeePerformance','employeeAccess','settings','product','customer','passwordResets','reviews','orders','tradeIn'].includes(tab) && (
+              {tab === 'reviews' && <CrudPanel title="Customer Reviews" collectionName="customerReviews" fields={REVIEW_FIELDS} primaryKey="Review" description="Messages submitted from the Contact Us page." search={search} notify={notify} />}
+              {tab === 'orders' && <CommercePanel search={search} notify={notify} />}
+              {tab === 'tradeIn' && <TradeInPanel search={search} notify={notify} />}
+              {!['dashboard','attendance','employeePerformance','employeeAccess','settings','product','customer','adminAccounts','passwordResets','reviews','orders','tradeIn'].includes(tab) && (
                 <div className="ap-placeholder">
                   <div className="ap-placeholder-icon">🚧</div>
                   <div className="ap-placeholder-text">{NAV.find(n => n.k === tab)?.l}</div>
@@ -2863,6 +4096,7 @@ export default function AdminPanel() {
       </div>
 
       {modal?.type === 'group' && <GroupModal type={modal.group} records={liveRecords} onClose={() => setModal(null)} />}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

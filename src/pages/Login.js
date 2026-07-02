@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { auth, db } from "../firebase";
-import { signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, fetchSignInMethodsForEmail } from "firebase/auth";
-import { addDoc, collection, serverTimestamp, setDoc, doc } from "firebase/firestore";
+import { signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { addDoc, collection, serverTimestamp, setDoc, doc, query, where, getDocs, updateDoc } from "firebase/firestore";
 import { useNavigate, Link } from "react-router-dom";
 import iconxLogo from "../assets/iconx-logo.jpg"; // place your logo in src/assets/
 import "./Login.css";
@@ -115,6 +115,33 @@ export default function Login() {
     return unsub;
   }, [navigate]);
 
+  /* ── Auto-resolve a pending password reset ───────────────────────────────
+     Firebase never tells our app when someone finishes the reset flow on
+     the emailed link (that page lives outside our app entirely). The next
+     best signal that a reset actually worked is: this email just signed in
+     successfully. So on every successful login, we flip the newest
+     'requested' / 'admin_sent' entry for that email over to 'resolved'.
+  ──────────────────────────────────────────────────────────────────────── */
+  const autoResolvePendingReset = async (userEmail) => {
+    try {
+      const snap = await getDocs(query(collection(db, 'passwordResets'), where('email', '==', userEmail)));
+      const pending = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((r) => r.status === 'requested' || r.status === 'admin_sent')
+        .sort((a, b) => (b.requestedAt?.toMillis?.() || 0) - (a.requestedAt?.toMillis?.() || 0));
+      if (pending.length > 0) {
+        await updateDoc(doc(db, 'passwordResets', pending[0].id), {
+          status: 'resolved',
+          resolvedAt: serverTimestamp(),
+          resolvedBy: 'user (auto — signed in successfully)',
+        });
+      }
+    } catch (err) {
+      // Never let this block login
+      console.warn('Auto-resolve password reset check failed:', err);
+    }
+  };
+
   /* Handle login */
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -123,6 +150,7 @@ export default function Login() {
     setLoading(true); setError('');
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
+      autoResolvePendingReset(email.trim().toLowerCase()); // fire-and-forget, don't block navigation
       const { role, accessStatus, profile } = await getUserAccess(cred.user.uid);
       const enteredCode = portalCode.trim();
       if (role === "admin" || role === "employee") {
@@ -192,55 +220,102 @@ export default function Login() {
   };
 
   /* ── Handle forgot password ──────────────────────────────────────────────
-     Security: before sending a reset email we check which sign-in providers
-     are linked to this address.
-     • If only "google.com" is linked → block the reset. The user must sign in
+     Security: before sending a reset email we check which provider this
+     address is linked to.
+     • If linked to "google.com" → block the reset. The user must sign in
        via Google; there is no password to reset, and sending a reset would
        let anyone who knows the email address hijack the account.
-     • If "password" provider is present → safe to send.
-     • If the address is not in Firebase Auth at all → we still show the
-       generic success message to avoid leaking which emails exist.
+     • Otherwise → safe to send.
+     • If the address is not registered at all → we still show the generic
+       success message to avoid leaking which emails exist.
+
+     NOTE: this used to check `fetchSignInMethodsForEmail`, but Google
+     disabled that API for every Firebase project created after 15 Sep 2023
+     (the "email enumeration protection" setting, on by default for new
+     projects). With that setting on, fetchSignInMethodsForEmail ALWAYS
+     resolves to an empty array — for every address, real or not — which
+     meant this code always fell into the "address not registered" branch
+     and silently skipped sendPasswordResetEmail entirely. That's why the
+     button looked like it worked (it showed "Reset link sent") but no
+     email ever actually went out, and nothing was ever logged to
+     `passwordResets` for the admin panel — including Google-account
+     attempts, which never even reached the block condition. We now read
+     the provider directly from the `users` collection (already stored
+     there — see handleGoogleLogin below) instead of asking Firebase Auth.
   ──────────────────────────────────────────────────────────────────────── */
   const handleReset = async () => {
     if (!email) { setError('Enter your email address first.'); return; }
 
     const trimmedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    // Rate Limiting Cooldown: 60 seconds
+    const lastRequestTime = localStorage.getItem(`lastResetTime_${trimmedEmail}`);
+    const now = Date.now();
+    if (lastRequestTime && now - parseInt(lastRequestTime, 10) < 60000) {
+      const waitSec = Math.ceil((60000 - (now - parseInt(lastRequestTime, 10))) / 1000);
+      setError(`Please wait ${waitSec} seconds before requesting another password reset email.`);
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      // Check what sign-in methods are registered for this email
-      let methods = [];
+      // Look up this email's provider in Firestore instead of the now-broken
+      // fetchSignInMethodsForEmail.
+      let userDoc = null;
       try {
-        methods = await fetchSignInMethodsForEmail(auth, trimmedEmail);
-      } catch (fetchErr) {
-        // fetchSignInMethodsForEmail throws on invalid email format
-        if (fetchErr.code === 'auth/invalid-email') {
-          setError('Please enter a valid email address.');
-          return;
-        }
-        // Any other error: treat as "unknown address" and fall through to
-        // show generic success (avoids leaking account existence)
-        methods = [];
+        const snap = await getDocs(query(collection(db, 'users'), where('email', '==', trimmedEmail)));
+        userDoc = snap.docs[0]?.data() || null;
+      } catch (lookupErr) {
+        console.warn('User lookup for password reset failed, proceeding anyway:', lookupErr);
       }
 
-      // Address not in Firebase at all → show success anyway (no info leak)
-      if (methods.length === 0) {
-        setResetSent(true);
+      // Deactivated account check
+      if (userDoc && String(userDoc.status || '').toLowerCase() === 'inactive') {
+        setError('This account has been deactivated. Please contact support.');
+        setLoading(false);
         return;
       }
 
       // Google-only account: sending a password reset would be a security
-      // hole — block it and explain to the user.
-      if (methods.length > 0 && !methods.includes('password') && methods.includes('google.com')) {
+      // hole — block it, explain to the user, and log the attempt so it's
+      // visible in the admin panel's Password Resets tab.
+      if (userDoc?.provider === 'google') {
         setError(
           'This email is linked to a Google account. Please sign in with the "Continue with Google" button instead. Password reset is not available for Google accounts.'
         );
+        try {
+          await addDoc(collection(db, 'passwordResets'), {
+            email: trimmedEmail,
+            requestedAt: serverTimestamp(),
+            status: 'blocked_google_account',
+            initiatedBy: 'user',
+            note: 'Blocked — Google-only account has no password.',
+          });
+        } catch (logErr) {
+          console.warn('Could not log blocked reset request:', logErr);
+        }
         return;
       }
 
-      // Has password provider → safe to send reset
-      await sendPasswordResetEmail(auth, trimmedEmail);
+      // Not a Google-only account (or not found) → safe to send reset.
+      // actionCodeSettings routes the emailed link to our own in-app
+      // ResetPassword page (instead of Firebase's default hosted page) so
+      // we can mark this request "resolved" the instant the user actually
+      // sets their new password. (The login-time auto-resolve in
+      // handleLogin below stays too, as a fallback for admin-sent resets
+      // or anyone who lands on Firebase's default page anyway.)
+      await sendPasswordResetEmail(auth, trimmedEmail, {
+        url: `${window.location.origin}/reset-password`,
+        handleCodeInApp: true,
+      });
+      // Store timestamp of successful request
+      localStorage.setItem(`lastResetTime_${trimmedEmail}`, Date.now().toString());
       setResetSent(true);
 
       // Log reset request to Firestore so admin panel can track it
@@ -257,7 +332,7 @@ export default function Login() {
         console.warn('Could not log password reset request:', logErr);
       }
     } catch (err) {
-      if (err.code === 'auth/user-not-found') {
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email') {
         // Show generic success so we don't reveal which emails exist
         setResetSent(true);
         return;
@@ -284,9 +359,15 @@ export default function Login() {
 
       // Try to get existing role from Firestore
       let role = null;
+      let profile = null;
+      let hasFirestoreDoc = false;
       try {
         const access = await getUserAccess(user.uid);
-        role = access.role;
+        if (access && access.source !== 'fallback') {
+          role = access.role;
+          profile = access.profile;
+          hasFirestoreDoc = true;
+        }
       } catch {
         // No Firestore doc yet — first-time Google sign-in, will create below
       }
@@ -299,19 +380,22 @@ export default function Login() {
         return;
       }
 
-      // First-time Google user — create their Firestore user document
-      if (!role) {
+      // In case of a previous bug, the document might exist but be an incomplete stub (missing role, email, or name)
+      const isStub = hasFirestoreDoc && profile && (!profile.role || !profile.email || !profile.fullName);
+
+      // First-time Google user (or incomplete stub) — create/complete their Firestore user document
+      if (!hasFirestoreDoc || isStub) {
         await setDoc(doc(db, 'users', user.uid), {
           fullName: user.displayName || '',
           firstName: (user.displayName || '').split(' ')[0] || '',
           lastName: (user.displayName || '').split(' ').slice(1).join(' ') || '',
           email: user.email || '',
-          phone: '',
+          phone: profile?.phone || '',
           role: 'customer',
-          status: 'active',
+          status: profile?.status || 'active',
           provider: 'google',           // ← marks this as a Google account
           photoURL: user.photoURL || '',
-          createdAt: serverTimestamp(),
+          createdAt: profile?.createdAt || serverTimestamp(),
           updatedAt: serverTimestamp(),
         }, { merge: true });
       } else {
